@@ -1,5 +1,5 @@
-isto::array
-===========
+isto::root_finding
+==================
 
 A ``C++20`` headers-only library to compute the root of numerical functions
 Requirements
