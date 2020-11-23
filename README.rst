@@ -1,7 +1,9 @@
-isto::array
-===========
+isto::root_finding
+==================
 
 A ``C++20`` headers-only library to compute the root of numerical functions
+
+
 Requirements
 ------------
 
@@ -10,10 +12,12 @@ To run the tests:
 - `GNU Make <https://www.gnu.org/software/make/>`_.
 - The `onqtam/doctest library <https://github.com/onqtam/doctest>`_.
 
+
 Installation
 ------------
 
 This is a headers-only library. Just put it where your compiler can find it.
+
 
 Tests
 -----
