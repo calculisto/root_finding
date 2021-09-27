@@ -65,7 +65,7 @@ newton (
         // and here.
             auto
         df = std::forward <Derivative> (derivative) (current);
-        if (df == static_cast <Return> (0))
+        if (df == 0.)
         {
             // TODO: add some info?
             throw zero_derivative_e {};
