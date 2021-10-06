@@ -63,7 +63,17 @@ TEST_CASE("root_finding.hpp")
             MESSAGE (v, ", ", f, ", ", df);
         }
     }
-
+    SUBCASE("newton, with info convergence does not throw noconvergence_e!")
+    {
+            auto const
+        [ result, info ] = newton (f1, df1, 1.0, cvg1, { .max_iter = 3 }, info::convergence);
+        CHECK(info.convergence.size () == 3);
+        CHECK(info.converged == false);
+        for (auto&& [v, f ,df]: info.convergence)
+        {
+            MESSAGE (v, ", ", f, ", ", df);
+        }
+    }
 
         auto
     cvg2 = [](
@@ -116,6 +126,17 @@ TEST_CASE("root_finding.hpp")
             auto const
         [ result, info ] = zhang (f1, 0.0, 10.0, cvg2, { /*default options*/ }, info::convergence);
         CHECK(info.convergence.size () > 1);
+        for (auto&& [ a, b, fa, fb ]: info.convergence)
+        {
+            MESSAGE (a, ", ", b, ", ", fa, ", ", fb);
+        }
+    }
+    SUBCASE("zhang, with info convergence does not throw no_convergence_e!")
+    {
+            auto const
+        [ result, info ] = zhang (f1, 0.0, 10.0, cvg2, { .max_iter = 3 }, info::convergence);
+        CHECK(info.convergence.size () == 3);
+        CHECK(info.converged == false);
         for (auto&& [ a, b, fa, fb ]: info.convergence)
         {
             MESSAGE (a, ", ", b, ", ", fa, ", ", fb);

@@ -34,7 +34,7 @@ info_t
 {};
 
     namespace
-info
+info //{{{
 {
         namespace
     tag
@@ -69,6 +69,8 @@ info
             struct
         convergence_newton_t
         {
+                bool
+            converged = true;
                 std::vector <std::tuple <
                       Value
                     , FunctionResult
@@ -83,6 +85,8 @@ info
             struct
         convergence_zhang_t
         {
+                bool
+            converged = true;
                 std::vector <std::tuple <
                       Value
                     , Value
@@ -177,7 +181,7 @@ info
         select_zhang_t = select_zhang <Tag, Ts...>::type;
     } // namespace data
 
-} // namespace info
+} // namespace info }}}
 
     template <
           class Function
@@ -247,7 +251,15 @@ newton (
             info_data.convergence.push_back ({current, f, df});
         }
     }
-    throw no_convergence_e {};
+    if constexpr (need_info_convergence)
+    {
+        info_data.converged = false;
+        return std::pair { current, info_data };
+    }
+    else
+    {
+        throw no_convergence_e {};
+    }
 }
 
     struct
@@ -363,7 +375,15 @@ zhang (
             }
         }
     }
-    throw no_convergence_e {};
+    if constexpr (need_info_convergence)
+    {
+        info_data.converged = false;
+        return std::pair { (a + b) / 2, info_data };
+    }
+    else
+    {
+        throw no_convergence_e {};
+    }
 };
 
 } // namespace isto::root_finding
