@@ -19,7 +19,7 @@ no_convergence_e
     struct
 zero_derivative_e
 {};
-
+/*
     namespace
 info
 {
@@ -70,7 +70,6 @@ info
         convergence;
     };
 } // namespace info
-
     namespace
 detail_newton
 {
@@ -113,12 +112,221 @@ detail_newton
     info_data_t = info_data <Ts...>::type;
 } // namespace detail_newton
 
+*/
+    struct
+info_tag_t
+{
+        int
+    code;
+        friend bool
+    operator == (info_tag_t, info_tag_t) = default;
+};
+
+    template <info_tag_t>
+    struct
+info_t
+{};
+
+    namespace
+info
+{
+        namespace
+    tag
+    {
+            constexpr auto
+        none = info_tag_t { 0 };
+            constexpr auto
+        iterations = info_tag_t { 1 };
+            constexpr auto
+        convergence = info_tag_t { 2 };
+    }
+        constexpr auto
+    none = info_t <tag::none> {};
+        constexpr auto
+    iterations = info_t <tag::iterations> {};
+        constexpr auto
+    convergence = info_t <tag::convergence> {};
+        namespace
+    data
+    {
+            struct
+        iterations_t
+        {
+                int
+            iteration_count;
+        };
+            template <
+                  class Value
+                , class FunctionResult
+                , class DerivativeResult
+            >
+            struct
+        convergence_newton_t
+        {
+                std::vector <std::tuple <
+                      Value
+                    , FunctionResult
+                    , DerivativeResult
+                >>
+            convergence;
+        };
+            template <
+                  class Value
+                , class FunctionResult
+            >
+            struct
+        convergence_zhang_t
+        {
+                std::vector <std::tuple <
+                      Value
+                    , Value
+                    , FunctionResult
+                    , FunctionResult
+                >>
+            convergence;
+        };
+
+        // Select the right data type
+            template <info_tag_t, class...>
+            struct
+        select_newton;
+
+            template <class... Ts>
+            struct
+        select_newton <tag::none, Ts...>
+        {
+                using
+            type = int const;
+        };
+            template <class... Ts>
+            struct
+        select_newton <tag::iterations, Ts...>
+        {
+                using
+            type = iterations_t;
+        };
+            template <
+                  class Function
+                , class Derivative
+                , class Value
+                , class Predicate
+            >
+            struct
+        select_newton <
+              tag::convergence
+            , Function
+            , Derivative
+            , Value
+            , Predicate
+        >{
+                using
+            type = convergence_newton_t <
+                  Value
+                , std::invoke_result_t <Function, Value>
+                , std::invoke_result_t <Derivative, Value>
+            >;
+        };
+            template <info_tag_t Tag, class... Ts>
+            using
+        select_newton_t = select_newton <Tag, Ts...>::type;
+
+            template <info_tag_t, class...>
+            struct
+        select_zhang;
+
+            template <class... Ts>
+            struct
+        select_zhang <tag::none, Ts...>
+        {
+                using
+            type = int const;
+        };
+            template <class... Ts>
+            struct
+        select_zhang <tag::iterations, Ts...>
+        {
+                using
+            type = iterations_t;
+        };
+            template <
+                  class Function
+                , class Value
+                , class Predicate
+            >
+            struct
+        select_zhang <
+              tag::convergence
+            , Function
+            , Value
+            , Predicate
+        >{
+                using
+            type = convergence_zhang_t <
+                  Value
+                , std::invoke_result_t <Function, Value>
+            >;
+        };
+            template <info_tag_t Tag, class... Ts>
+            using
+        select_zhang_t = select_zhang <Tag, Ts...>::type;
+    } // namespace data
+
+} // namespace info
+/*
+    namespace
+detail_newton
+{
+        template <info_tag_t, class...>
+        struct
+    info_data;
+
+        template <class... Ts>
+        struct
+    info_data <info::tag::none, Ts...>
+    {
+            using
+        type = int const;
+    };
+        template <class... Ts>
+        struct
+    info_data <info::tag::iterations, Ts...>
+    {
+            using
+        type = info::data::iterations_t;
+    };
+        template <
+              class Function
+            , class Derivative
+            , class Value
+            , class Predicate
+        >
+        struct
+    info_data <
+          info::tag::convergence
+        , Function
+        , Derivative
+        , Value
+        , Predicate
+    >{
+            using
+        type = info::data::convergence_newton_t <
+              Value
+            , std::invoke_result_t <Function, Value>
+            , std::invoke_result_t <Derivative, Value>
+        >;
+    };
+        template <info_tag_t Tag, class... Ts>
+        using
+    info_data_t = info_data <Tag, Ts...>::type;
+} // namespace detail_newton
+*/
+
     template <
           class Function
         , class Derivative
         , class Value
         , class Predicate
-        , class Info = info::none_t
+        , info_tag_t InfoTag = info::tag::none
     >
     auto
 newton (
@@ -127,19 +335,19 @@ newton (
     , Value const&     initial_guess
     , Predicate&&      converged
     , options_t const& options = options_t {}
-    , [[maybe_unused]] Info             info = info::none
+    , [[ maybe_unused ]] info_t <InfoTag> info = info::none
 ){
         constexpr static auto
-    need_info_iterations = std::is_same_v <Info, info::iterations_t>;
+    need_info_iterations = InfoTag == info::tag::iterations;
         constexpr static auto
-    need_info_convergence = std::is_same_v <Info, info::convergence_t>;
+    need_info_convergence = InfoTag == info::tag::convergence;;
         constexpr static auto
     need_info = need_info_iterations || need_info_convergence;
 
         [[maybe_unused]]
         auto
-    info_data = detail_newton::info_data_t <
-          Info
+    info_data = info::data::select_newton_t <
+          InfoTag
         , Function
         , Derivative
         , Value
@@ -187,7 +395,7 @@ newton (
     struct
 no_single_root_between_brackets_e
 {};
-
+/*
     namespace
 detail_zhang
 {
@@ -227,11 +435,12 @@ detail_zhang
         using
     info_data_t = info_data <Ts...>::type;
 } // namespace detail_zhang
+*/
     template <
           class Function
         , class Value
         , class Predicate
-        , class Info = info::none_t
+        , info_tag_t InfoTag = info::tag::none
     >
     auto
 zhang (
@@ -240,19 +449,19 @@ zhang (
     , Value            b // bracket 2
     , Predicate&&      converged
     , options_t const& options = options_t {}
-    , [[maybe_unused]] Info             info = info::none
+    , [[ maybe_unused ]] info_t <InfoTag> info = info::none
 ){
         constexpr static auto
-    need_info_iterations = std::is_same_v <Info, info::iterations_t>;
+    need_info_iterations = InfoTag == info::tag::iterations;
         constexpr static auto
-    need_info_convergence = std::is_same_v <Info, info::convergence_t>;
+    need_info_convergence = InfoTag == info::tag::convergence;;
         constexpr static auto
     need_info = need_info_iterations || need_info_convergence;
 
         [[maybe_unused]]
         auto
-    info_data = detail_zhang::info_data_t <
-          Info
+    info_data = info::data::select_zhang_t <
+          InfoTag
         , Function
         , Value
         , Predicate
