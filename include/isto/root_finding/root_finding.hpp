@@ -1,19 +1,10 @@
 #include <utility>
 #include <type_traits>
+#include <vector>
+#include <tuple>
 #pragma once
     namespace isto::root_finding
 {
-    struct
-info_none_t
-{};
-
-    struct
-info_iterations_t
-{
-        int
-    iteration_count;
-};
-
     struct
 options_t
 {
@@ -29,48 +20,166 @@ no_convergence_e
 zero_derivative_e
 {};
 
+    namespace
+info
+{
+        struct
+    none_t
+    {};
+        constexpr auto
+    none = none_t {};
+
+        struct
+    iterations_t
+    {};
+        constexpr auto
+    iterations = iterations_t {};
+        struct
+    iterations_data_t
+    {
+            int
+        iteration_count;
+    };
+
+        struct
+    convergence_t
+    {};
+        constexpr auto
+    convergence = convergence_t {};
+        template <class Value, class FunctionResult, class DerivativeResult>
+        struct
+    convergence_data_newton_t
+    {
+            std::vector <std::tuple <
+                  Value
+                , FunctionResult
+                , DerivativeResult
+            >>
+        convergence;
+    };
+        template <class Value, class FunctionResult>
+        struct
+    convergence_data_zhang_t
+    {
+            std::vector <std::tuple <
+                  Value
+                , Value
+                , FunctionResult
+                , FunctionResult
+            >>
+        convergence;
+    };
+} // namespace info
+
+    namespace
+detail_newton
+{
+        template <class...>
+        struct
+    info_data;
+
+        template <class... Ts>
+        struct
+    info_data <info::none_t, Ts...>
+    {
+            using
+        type = int const;
+    };
+        template <class... Ts>
+        struct
+    info_data <info::iterations_t, Ts...>
+    {
+            using
+        type = info::iterations_data_t;
+    };
+        template <
+              class Function
+            , class Derivative
+            , class Value
+            , class Predicate
+        >
+        struct
+    info_data <info::convergence_t, Function, Derivative, Value, Predicate>
+    {
+            using
+        type = info::convergence_data_newton_t <
+              Value
+            , std::invoke_result_t <Function, Value>
+            , std::invoke_result_t <Derivative, Value>
+        >;
+    };
+        template <class... Ts>
+        using
+    info_data_t = info_data <Ts...>::type;
+} // namespace detail_newton
+
     template <
           class Function
         , class Derivative
         , class Value
         , class Predicate
-        , class Info = info_none_t
-        , class Return = std::invoke_result_t <Function, Value>
+        , class Info = info::none_t
     >
     auto
 newton (
       Function&&       function
     , Derivative&&     derivative
-    , Value&&          initial_guess
+    , Value const&     initial_guess
     , Predicate&&      converged
     , options_t const& options = options_t {}
-    , Info&&           info = info_none_t {}
+    , [[maybe_unused]] Info             info = info::none
 ){
-    // TODO: check functions evaluations?
+        constexpr static auto
+    need_info_iterations = std::is_same_v <Info, info::iterations_t>;
+        constexpr static auto
+    need_info_convergence = std::is_same_v <Info, info::convergence_t>;
+        constexpr static auto
+    need_info = need_info_iterations || need_info_convergence;
+
+        [[maybe_unused]]
+        auto
+    info_data = detail_newton::info_data_t <
+          Info
+        , Function
+        , Derivative
+        , Value
+        , Predicate
+    > {};
+
         Value
     current = initial_guess;
     for (int i = 0; i < options.max_iter; ++i)
     {
-        // Here,
+        // TODO: check functions evaluations?
             auto
         f = std::forward <Function> (function) (current);
         if (std::forward <Predicate> (converged) (f))
         {
-            if constexpr (std::is_same_v <Info, info_iterations_t&>)
+            if constexpr (need_info_iterations)
             {
-                info.iteration_count = i;
+                info_data.iteration_count = i;
             }
-            return current;
+            if constexpr (need_info)
+            {
+                return std::pair { current, info_data };
+            }
+            else
+            {
+                return current;
+            }
         }
-        // and here.
+        // TODO: check functions evaluations?
             auto
         df = std::forward <Derivative> (derivative) (current);
         if (df == 0.)
         {
-            // TODO: add some info?
             throw zero_derivative_e {};
         }
         current -= f / df;
+        if constexpr (need_info_convergence)
+        {
+            info_data.convergence.push_back ({current, f, df});
+        }
     }
     throw no_convergence_e {};
 }
@@ -79,12 +188,50 @@ newton (
 no_single_root_between_brackets_e
 {};
 
+    namespace
+detail_zhang
+{
+        template <class...>
+        struct
+    info_data;
+
+        template <class... Ts>
+        struct
+    info_data <info::none_t, Ts...>
+    {
+            using
+        type = int const;
+    };
+        template <class... Ts>
+        struct
+    info_data <info::iterations_t, Ts...>
+    {
+            using
+        type = info::iterations_data_t;
+    };
+        template <
+              class Function
+            , class Value
+            , class Predicate
+        >
+        struct
+    info_data <info::convergence_t, Function, Value, Predicate>
+    {
+            using
+        type = info::convergence_data_zhang_t <
+              Value
+            , std::invoke_result_t <Function, Value>
+        >;
+    };
+        template <class... Ts>
+        using
+    info_data_t = info_data <Ts...>::type;
+} // namespace detail_zhang
     template <
           class Function
         , class Value
         , class Predicate
-        , class Info = info_none_t
-        , class Return = std::invoke_result_t <Function, Value>
+        , class Info = info::none_t
     >
     auto
 zhang (
@@ -93,21 +240,36 @@ zhang (
     , Value            b // bracket 2
     , Predicate&&      converged
     , options_t const& options = options_t {}
-    , Info&&           info = info_none_t {}
+    , [[maybe_unused]] Info             info = info::none
 ){
-    // TODO: check functions evaluations?
+        constexpr static auto
+    need_info_iterations = std::is_same_v <Info, info::iterations_t>;
+        constexpr static auto
+    need_info_convergence = std::is_same_v <Info, info::convergence_t>;
+        constexpr static auto
+    need_info = need_info_iterations || need_info_convergence;
+
+        [[maybe_unused]]
+        auto
+    info_data = detail_zhang::info_data_t <
+          Info
+        , Function
+        , Value
+        , Predicate
+    > {};
+
         using std::swap;
     if (b < a)
     {
             using std::swap;
         swap (a, b);
     }
-    // Here (x2),
+    // TODO: check functions evaluations?
         auto
     fa = std::forward <Function> (function) (a);
         auto
     fb = std::forward <Function> (function) (b);
-    if (fa * fb > static_cast <Return> (0))
+    if (fa * fb > 0)
     {
         throw no_single_root_between_brackets_e {};
     }
@@ -134,7 +296,7 @@ zhang (
             swap (s , c);
             swap (fs, fc);
         }
-        if (fs * fc < static_cast <Return> (0))
+        if (fs * fc < 0)
         {
             a  = s;
             b  = c;
@@ -143,7 +305,7 @@ zhang (
         }
         else
         {
-            if (fs * fb < static_cast <Return> (0))
+            if (fs * fb < 0)
             {
                 a  = c;
                 fa = fc;
@@ -154,13 +316,24 @@ zhang (
                 fb = fs;
             }
         }
+        if constexpr (need_info_convergence)
+        {
+            info_data.convergence.push_back ({ a, b, fa, fb });
+        }
         if (std::forward <Predicate> (converged) (a, b, fa, fb))
         {
-            if constexpr (std::is_same_v <Info, info_iterations_t&>)
+            if constexpr (need_info_iterations)
             {
-                info.iteration_count = i;
+                info_data.iteration_count = i;
             }
-            return (a + b) / 2;
+            if constexpr (need_info)
+            {
+                return std::pair { (a + b) / 2,  info_data };
+            }
+            else
+            {
+                return (a + b) / 2;
+            }
         }
     }
     throw no_convergence_e {};

@@ -47,12 +47,21 @@ TEST_CASE("root_finding.hpp")
             , no_convergence_e
         );
     }
-    SUBCASE("newton, with info")
+    SUBCASE("newton, with info (iteration count)")
     {
-            auto
-        info = info_iterations_t {};
-        newton (f1, df1, 1.0, cvg1, { /*default options*/ }, info);
+            auto const
+        [ result, info ] = newton (f1, df1, 1.0, cvg1, { /*default options*/ }, info::iterations);
         CHECK(info.iteration_count > 1);
+    }
+    SUBCASE("newton, with info (convergence)")
+    {
+            auto const
+        [ result, info ] = newton (f1, df1, 1.0, cvg1, { /*default options*/ }, info::convergence);
+        CHECK(info.convergence.size () > 1);
+        for (auto&& [v, f ,df]: info.convergence)
+        {
+            MESSAGE (v, ", ", f, ", ", df);
+        }
     }
 
 
@@ -96,11 +105,20 @@ TEST_CASE("root_finding.hpp")
             , no_convergence_e
         );
     }
-    SUBCASE("zhang, with info")
+    SUBCASE("zhang, with info (iteration count)")
     {
-            auto
-        info = info_iterations_t {};
-        zhang (f1, 0.0, 10.0, cvg2, { /*default options*/ }, info);
+            auto const
+        [ result, info ] = zhang (f1, 0.0, 10.0, cvg2, { /*default options*/ }, info::iterations);
         CHECK(info.iteration_count > 1);
+    }
+    SUBCASE("zhang, with info (convergence)")
+    {
+            auto const
+        [ result, info ] = zhang (f1, 0.0, 10.0, cvg2, { /*default options*/ }, info::convergence);
+        CHECK(info.convergence.size () > 1);
+        for (auto&& [ a, b, fa, fb ]: info.convergence)
+        {
+            MESSAGE (a, ", ", b, ", ", fa, ", ", fb);
+        }
     }
 }
