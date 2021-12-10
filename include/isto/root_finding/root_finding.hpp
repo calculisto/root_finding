@@ -56,8 +56,22 @@ info //{{{
     data
     {
             struct
-        iterations_t
+        iterations_newton_t
         {
+                bool
+            converged = true;
+                bool
+            zero_derivative = false;
+                int
+            iteration_count;
+        };
+            struct
+        iterations_zhang_t
+        {
+                bool
+            converged = true;
+                bool
+            no_single_root_between_bracket = false;
                 int
             iteration_count;
         };
@@ -71,6 +85,8 @@ info //{{{
         {
                 bool
             converged = true;
+                bool
+            zero_derivative = false;
                 std::vector <std::tuple <
                       Value
                     , FunctionResult
@@ -87,6 +103,8 @@ info //{{{
         {
                 bool
             converged = true;
+                bool
+            no_single_root_between_bracket = false;
                 std::vector <std::tuple <
                       Value
                     , Value
@@ -113,7 +131,7 @@ info //{{{
         select_newton <tag::iterations, Ts...>
         {
                 using
-            type = iterations_t;
+            type = iterations_newton_t;
         };
             template <
                   class Function
@@ -156,7 +174,7 @@ info //{{{
         select_zhang <tag::iterations, Ts...>
         {
                 using
-            type = iterations_t;
+            type = iterations_zhang_t;
         };
             template <
                   class Function
@@ -243,7 +261,16 @@ newton (
         df = std::forward <Derivative> (derivative) (current);
         if (df == 0.)
         {
-            throw zero_derivative_e {};
+            if constexpr (need_info)
+            {
+                info_data.converged = false;
+                info_data.zero_derivative = true;
+                return std::pair { current, info_data };
+            }
+            else
+            {
+                throw zero_derivative_e {};
+            }
         }
         current -= f / df;
         if constexpr (need_info_convergence)
@@ -251,7 +278,7 @@ newton (
             info_data.convergence.push_back ({current, f, df});
         }
     }
-    if constexpr (need_info_convergence)
+    if constexpr (need_info)
     {
         info_data.converged = false;
         return std::pair { current, info_data };
@@ -310,7 +337,16 @@ zhang (
     fb = std::forward <Function> (function) (b);
     if (fa * fb > 0)
     {
-        throw no_single_root_between_brackets_e {};
+        if constexpr (need_info)
+        {
+            info_data.converged = false;
+            info_data.no_single_root_between_bracket = true;
+            return std::pair { (a + b) / 2,  info_data };
+        }
+        else
+        {
+            throw no_single_root_between_brackets_e {};
+        }
     }
     for (int i = 0; i < options.max_iter; ++i)
     {
@@ -375,7 +411,7 @@ zhang (
             }
         }
     }
-    if constexpr (need_info_convergence)
+    if constexpr (need_info)
     {
         info_data.converged = false;
         return std::pair { (a + b) / 2, info_data };

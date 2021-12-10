@@ -63,7 +63,7 @@ TEST_CASE("root_finding.hpp")
             MESSAGE (v, ", ", f, ", ", df);
         }
     }
-    SUBCASE("newton, with info convergence does not throw noconvergence_e!")
+    SUBCASE("newton, with info convergence does not throw no_convergence_e!")
     {
             auto const
         [ result, info ] = newton (f1, df1, 1.0, cvg1, { .max_iter = 3 }, info::convergence);
@@ -73,6 +73,13 @@ TEST_CASE("root_finding.hpp")
         {
             MESSAGE (v, ", ", f, ", ", df);
         }
+    }
+    SUBCASE("In fact, with any info, never throw")
+    {
+            auto const
+        [ result, info ] = newton (f1, [](auto){ return 0.0; }, 1.0, cvg1, {}, info::iterations);
+        CHECK(!info.converged);
+        CHECK(info.zero_derivative);
     }
 
         auto
@@ -141,5 +148,12 @@ TEST_CASE("root_finding.hpp")
         {
             MESSAGE (a, ", ", b, ", ", fa, ", ", fb);
         }
+    }
+    SUBCASE("In fact, with any info, never throw")
+    {
+            auto const
+        [ result, info ] = zhang (f1, 0.0, 0.1, cvg2, {}, info::iterations);
+        CHECK(!info.converged);
+        CHECK(info.no_single_root_between_bracket);
     }
 }
