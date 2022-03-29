@@ -156,7 +156,7 @@ info //{{{
         };
             template <info_tag_t Tag, class... Ts>
             using
-        select_newton_t = select_newton <Tag, Ts...>::type;
+        select_newton_t = typename select_newton <Tag, Ts...>::type;
 
             template <info_tag_t, class...>
             struct
@@ -196,7 +196,7 @@ info //{{{
         };
             template <info_tag_t Tag, class... Ts>
             using
-        select_zhang_t = select_zhang <Tag, Ts...>::type;
+        select_zhang_t = typename select_zhang <Tag, Ts...>::type;
     } // namespace data
 
 } // namespace info }}}
