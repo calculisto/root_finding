@@ -1,8 +1,9 @@
+#pragma once
 #include <utility>
 #include <type_traits>
 #include <vector>
 #include <tuple>
-#pragma once
+
     namespace isto::root_finding
 {
     struct
@@ -56,25 +57,37 @@ info //{{{
     data
     {
             struct
-        iterations_newton_t
+        base_t
         {
                 bool
             converged = true;
                 bool
-            zero_derivative = false;
+            function_threw = false;
+        };
+            struct
+        iterations_base_t
+            : base_t
+        {
                 int
             iteration_count;
         };
             struct
-        iterations_zhang_t
+        iterations_newton_t
+            : iterations_base_t
         {
                 bool
-            converged = true;
+            zero_derivative = false;
+                bool
+            derivative_threw = false;
+        };
+            struct
+        iterations_zhang_t
+            : iterations_base_t
+        {
                 bool
             no_single_root_between_bracket = false;
-                int
-            iteration_count;
         };
+
             template <
                   class Value
                 , class FunctionResult
@@ -82,11 +95,12 @@ info //{{{
             >
             struct
         convergence_newton_t
+            : base_t
         {
                 bool
-            converged = true;
-                bool
             zero_derivative = false;
+                bool
+            derivative_threw = false;
                 std::vector <std::tuple <
                       Value
                     , FunctionResult
@@ -100,9 +114,8 @@ info //{{{
             >
             struct
         convergence_zhang_t
+            : base_t
         {
-                bool
-            converged = true;
                 bool
             no_single_root_between_bracket = false;
                 std::vector <std::tuple <
@@ -208,6 +221,9 @@ info //{{{
         , class Predicate
         , info_tag_t InfoTag = info::tag::none
     >
+    requires 
+           std::invocable <Function, Value> 
+        && std::invocable <Derivative, Value>
     auto
 newton (
       Function&&       function
@@ -238,9 +254,25 @@ newton (
     current = initial_guess;
     for (int i = 0; i < options.max_iter; ++i)
     {
-        // TODO: check functions evaluations?
             auto
-        f = std::forward <Function> (function) (current);
+        f = Value {};
+        try 
+        {
+            f = std::forward <Function> (function) (current);
+        }
+        catch (...)
+        {
+            if constexpr (need_info)
+            {
+                info_data.converged = false;
+                info_data.function_threw = true;
+                return std::pair { current, info_data };
+            }
+            else
+            {
+                throw;
+            }
+        }
         if (std::forward <Predicate> (converged) (f))
         {
             if constexpr (need_info_iterations)
@@ -256,9 +288,25 @@ newton (
                 return current;
             }
         }
-        // TODO: check functions evaluations?
             auto
-        df = std::forward <Derivative> (derivative) (current);
+        df = Value {};
+        try
+        {
+            df = std::forward <Derivative> (derivative) (current);
+        }
+        catch (...)
+        {
+            if constexpr (need_info)
+            {
+                info_data.converged = false;
+                info_data.derivative_threw = true;
+                return std::pair { current, info_data };
+            }
+            else
+            {
+                throw;
+            }
+        }
         if (df == 0.)
         {
             if constexpr (need_info)
@@ -288,6 +336,7 @@ newton (
         throw no_convergence_e {};
     }
 }
+
 
     struct
 no_single_root_between_brackets_e
@@ -330,11 +379,28 @@ zhang (
             using std::swap;
         swap (a, b);
     }
-    // TODO: check functions evaluations?
-        auto
-    fa = std::forward <Function> (function) (a);
-        auto
-    fb = std::forward <Function> (function) (b);
+        Value
+      fa
+    , fb
+    ;
+    try
+    {
+        fa = std::forward <Function> (function) (a);
+        fb = std::forward <Function> (function) (b);
+    }
+    catch (...)
+    {
+        if constexpr (need_info)
+        {
+            info_data.converged = false;
+            info_data.function_threw = true;
+            return std::pair { (a + b) / 2, info_data };
+        }
+        else
+        {
+            throw;
+        }
+    }
     if (fa * fb > 0)
     {
         if constexpr (need_info)
@@ -352,9 +418,25 @@ zhang (
     {
             auto
         c = (a + b) / 2;
-        // here,
             auto
-        fc = std::forward <Function> (function) (c);
+        fc = Value {};
+        try
+        {
+            fc = std::forward <Function> (function) (c);
+        }
+        catch (...)
+        {
+            if constexpr (need_info)
+            {
+                info_data.converged = false;
+                info_data.function_threw = true;
+                return std::pair { (a + b) / 2, info_data };
+            }
+            else
+            {
+                throw;
+            }
+        }
             auto
         s = (fa != fc && fb != fc) ?
             b - fb * (b - a) / (fb - fa)
@@ -363,9 +445,25 @@ zhang (
             + b * fa * fc / ((fb - fa) * (fb - fc)) 
             + c * fa * fb / ((fc - fa) * (fc - fb))
         ;
-        // and here
             auto
-        fs = std::forward <Function> (function) (s);
+        fs = Value {};
+        try
+        {
+            fs = std::forward <Function> (function) (s);
+        }
+        catch (...)
+        {
+            if constexpr (need_info)
+            {
+                info_data.converged = false;
+                info_data.function_threw = true;
+                return std::pair { (a + b) / 2, info_data };
+            }
+            else
+            {
+                throw;
+            }
+        }
         if (c > s)
         {
             swap (s , c);

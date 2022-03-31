@@ -21,6 +21,16 @@ TEST_CASE("root_finding.hpp")
     target2 = 0.7390851332151606416553120876738734040134 ;
 
         auto
+    f3 = [](double){ throw int {}; return 1.; };
+        auto
+    df3 = [](double) { return 0; };
+
+        auto
+    f4 = [](double){ return 1.; };
+        auto
+    df4 = [](double) { throw int {}; return 1.; };
+
+        auto
     cvg1 = [](double x){ return fabs (x) < 1e-12; };
 
     SUBCASE("newton")
@@ -38,6 +48,17 @@ TEST_CASE("root_finding.hpp")
         CHECK_THROWS_AS(
               newton (f1, [](auto){ return 0.0; }, 1.0, cvg1)
             , zero_derivative_e
+        );
+    }
+    SUBCASE("newton, user function throws")
+    {
+        CHECK_THROWS_AS(
+              newton (f3, df3, 1.0, cvg1)
+            , int
+        );
+        CHECK_THROWS_AS(
+              newton (f4, df4, 1.0, cvg1)
+            , int
         );
     }
     SUBCASE("newton, with options")
@@ -81,6 +102,20 @@ TEST_CASE("root_finding.hpp")
         CHECK(!info.converged);
         CHECK(info.zero_derivative);
     }
+    SUBCASE("newton, user function throws, with info")
+    {
+            auto const
+        [ result, info ] = newton (f3, df3, 1.0, cvg1, {}, info::iterations);
+        CHECK(!info.converged);
+        CHECK(info.function_threw);
+    }
+    SUBCASE("newton, user derivative throws, with info")
+    {
+            auto const
+        [ result, info ] = newton (f4, df4, 1.0, cvg1, {}, info::iterations);
+        CHECK(!info.converged);
+        CHECK(info.derivative_threw);
+    }
 
         auto
     cvg2 = [](
@@ -113,6 +148,13 @@ TEST_CASE("root_finding.hpp")
         CHECK_THROWS_AS(
               zhang (f1, 0.0, 0.1, cvg2);
             , no_single_root_between_brackets_e
+        );
+    }
+    SUBCASE("zhang, user function throws")
+    {
+        CHECK_THROWS_AS(
+              zhang (f3, 0.0, 0.1, cvg2);
+            , int
         );
     }
     SUBCASE("zhang, with options")
@@ -155,5 +197,12 @@ TEST_CASE("root_finding.hpp")
         [ result, info ] = zhang (f1, 0.0, 0.1, cvg2, {}, info::iterations);
         CHECK(!info.converged);
         CHECK(info.no_single_root_between_bracket);
+    }
+    SUBCASE("zhang, user function throws, with info")
+    {
+            auto const
+        [ result, info ] = zhang (f3, 0.0, 0.1, cvg2, {}, info::iterations);
+        CHECK(!info.converged);
+        CHECK(info.function_threw);
     }
 }
