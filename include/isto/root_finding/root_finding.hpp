@@ -220,6 +220,8 @@ info //{{{
         , class Value
         , class Predicate
         , info_tag_t InfoTag = info::tag::none
+        , class FunctionReturn = std::invoke_result_t <Function, Value>
+        , class DerivativeReturn = std::invoke_result_t <Derivative, Value>
     >
     requires 
            std::invocable <Function, Value> 
@@ -255,7 +257,7 @@ newton (
     for (int i = 0; i < options.max_iter; ++i)
     {
             auto
-        f = Value {};
+        f = FunctionReturn {};
         try 
         {
             f = std::forward <Function> (function) (current);
@@ -289,7 +291,7 @@ newton (
             }
         }
             auto
-        df = Value {};
+        df = DerivativeReturn {};
         try
         {
             df = std::forward <Derivative> (derivative) (current);
@@ -347,6 +349,7 @@ no_single_root_between_brackets_e
         , class Value
         , class Predicate
         , info_tag_t InfoTag = info::tag::none
+        , class FunctionReturn = std::invoke_result_t <Function, Value>
     >
     auto
 zhang (
@@ -379,7 +382,7 @@ zhang (
             using std::swap;
         swap (a, b);
     }
-        Value
+        FunctionReturn
       fa
     , fb
     ;
@@ -419,7 +422,7 @@ zhang (
             auto
         c = (a + b) / 2;
             auto
-        fc = Value {};
+        fc = FunctionReturn {};
         try
         {
             fc = std::forward <Function> (function) (c);
@@ -446,7 +449,7 @@ zhang (
             + c * fa * fb / ((fc - fa) * (fc - fb))
         ;
             auto
-        fs = Value {};
+        fs = FunctionReturn {};
         try
         {
             fs = std::forward <Function> (function) (s);
