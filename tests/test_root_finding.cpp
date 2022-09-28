@@ -47,7 +47,7 @@ TEST_CASE("root_finding.hpp")
     {
         CHECK_THROWS_AS(
               newton (f1, [](auto){ return 0.0; }, 1.0, cvg1)
-            , zero_derivative_e
+            , newton_zero_derivative_e
         );
     }
     SUBCASE("newton, user function throws")
@@ -65,7 +65,7 @@ TEST_CASE("root_finding.hpp")
     {
         CHECK_THROWS_AS(
               newton (f1, df1, 1.0, cvg1, { .max_iter = 1 })
-            , no_convergence_e
+            , newton_no_convergence_e
         );
     }
     SUBCASE("newton, with info (iteration count)")
@@ -147,7 +147,7 @@ TEST_CASE("root_finding.hpp")
     {
         CHECK_THROWS_AS(
               zhang (f1, 0.0, 0.1, cvg2);
-            , no_single_root_between_brackets_e
+            , zhang_no_single_root_between_brackets_e
         );
     }
     SUBCASE("zhang, user function throws")
@@ -161,7 +161,7 @@ TEST_CASE("root_finding.hpp")
     {
         CHECK_THROWS_AS(
               zhang (f1, 0.0, 10.0, cvg2, { .max_iter = 1 })
-            , no_convergence_e
+            , zhang_no_convergence_e
         );
     }
     SUBCASE("zhang, with info (iteration count)")

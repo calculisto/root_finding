@@ -4,22 +4,24 @@
 #include <vector>
 #include <tuple>
 
-    namespace isto::root_finding
+    namespace 
+isto::root_finding
 {
-    struct
-options_t
-{
-        int
-    max_iter = 100;
-};
+        namespace
+    defaults
+    {
+            struct
+        options_t
+        {
+                int
+            max_iter = 100;
+        };
 
-    struct
-no_convergence_e
-{};
+            struct
+        no_convergence_e
+        {};
+    } // namespace defaults
 
-    struct
-zero_derivative_e
-{};
     struct
 info_tag_t
 {
@@ -35,7 +37,7 @@ info_t
 {};
 
     namespace
-info //{{{
+info
 {
         namespace
     tag
@@ -53,6 +55,7 @@ info //{{{
     iterations = info_t <tag::iterations> {};
         constexpr auto
     convergence = info_t <tag::convergence> {};
+
         namespace
     data
     {
@@ -71,149 +74,106 @@ info //{{{
                 int
             iteration_count;
         };
-            struct
-        iterations_newton_t
-            : iterations_base_t
-        {
-                bool
-            zero_derivative = false;
-                bool
-            derivative_threw = false;
-        };
-            struct
-        iterations_zhang_t
-            : iterations_base_t
-        {
-                bool
-            no_single_root_between_bracket = false;
-        };
-
-            template <
-                  class Value
-                , class FunctionResult
-                , class DerivativeResult
-            >
-            struct
-        convergence_newton_t
-            : base_t
-        {
-                bool
-            zero_derivative = false;
-                bool
-            derivative_threw = false;
-                std::vector <std::tuple <
-                      Value
-                    , FunctionResult
-                    , DerivativeResult
-                >>
-            convergence;
-        };
-            template <
-                  class Value
-                , class FunctionResult
-            >
-            struct
-        convergence_zhang_t
-            : base_t
-        {
-                bool
-            no_single_root_between_bracket = false;
-                std::vector <std::tuple <
-                      Value
-                    , Value
-                    , FunctionResult
-                    , FunctionResult
-                >>
-            convergence;
-        };
 
         // Select the right data type
-            template <info_tag_t, class...>
+            template <class T, info_tag_t, class... Ts>
             struct
-        select_newton;
+        select
+        {};
 
-            template <class... Ts>
+            template <class T, class... Ts>
             struct
-        select_newton <tag::none, Ts...>
+        select <T, tag::none, Ts...>
         {
                 using
             type = int const;
         };
-            template <class... Ts>
-            struct
-        select_newton <tag::iterations, Ts...>
-        {
-                using
-            type = iterations_newton_t;
-        };
-            template <
-                  class Function
-                , class Derivative
-                , class Value
-                , class Predicate
-            >
-            struct
-        select_newton <
-              tag::convergence
-            , Function
-            , Derivative
-            , Value
-            , Predicate
-        >{
-                using
-            type = convergence_newton_t <
-                  Value
-                , std::invoke_result_t <Function, Value>
-                , std::invoke_result_t <Derivative, Value>
-            >;
-        };
-            template <info_tag_t Tag, class... Ts>
-            using
-        select_newton_t = typename select_newton <Tag, Ts...>::type;
 
-            template <info_tag_t, class...>
-            struct
-        select_zhang;
-
-            template <class... Ts>
-            struct
-        select_zhang <tag::none, Ts...>
-        {
-                using
-            type = int const;
-        };
-            template <class... Ts>
-            struct
-        select_zhang <tag::iterations, Ts...>
-        {
-                using
-            type = iterations_zhang_t;
-        };
-            template <
-                  class Function
-                , class Value
-                , class Predicate
-            >
-            struct
-        select_zhang <
-              tag::convergence
-            , Function
-            , Value
-            , Predicate
-        >{
-                using
-            type = convergence_zhang_t <
-                  Value
-                , std::invoke_result_t <Function, Value>
-            >;
-        };
-            template <info_tag_t Tag, class... Ts>
+            template <class T, info_tag_t Tag, class... Ts>
             using
-        select_zhang_t = typename select_zhang <Tag, Ts...>::type;
+        select_t = typename select <T, Tag, Ts...>::type;
     } // namespace data
 
-} // namespace info }}}
+} // namespace info
 
+// Newton method
+    struct
+NewtonTag
+{};
+
+// What options it can takes
+    using
+newton_options_t = defaults::options_t;
+
+// What it might throw
+    using
+newton_no_convergence_e = defaults::no_convergence_e;
+
+    struct
+newton_zero_derivative_e
+{};
+
+// What info it might return
+    namespace
+info::data
+{
+        struct
+    iterations_newton_t
+        : iterations_base_t
+    {
+            bool
+        zero_derivative = false;
+            bool
+        derivative_threw = false;
+    };
+
+        template <
+              class Value
+            , class FunctionResult
+            , class DerivativeResult
+        >
+        struct
+    convergence_newton_t
+        : base_t
+    {
+            bool
+        zero_derivative = false;
+            bool
+        derivative_threw = false;
+            std::vector <std::tuple <
+                  Value
+                , FunctionResult
+                , DerivativeResult
+            >>
+        convergence;
+    };
+
+        template <class... Ts>
+        struct
+    select <NewtonTag, tag::iterations, Ts...>
+    {
+            using
+        type = iterations_newton_t;
+    };
+
+        template <
+              class Function
+            , class Derivative
+            , class Value
+        >
+        struct
+    select <NewtonTag, tag::convergence, Function, Derivative, Value>
+    {
+            using
+        type = convergence_newton_t <
+              Value
+            , std::invoke_result_t <Function, Value>
+            , std::invoke_result_t <Derivative, Value>
+        >;
+    };
+} // namespace info::data
+
+// The function itself
     template <
           class Function
         , class Derivative
@@ -232,8 +192,9 @@ newton (
     , Derivative&&     derivative
     , Value const&     initial_guess
     , Predicate&&      converged
-    , options_t const& options = options_t {}
-    , [[ maybe_unused ]] info_t <InfoTag> info = info::none
+    , newton_options_t const& options = newton_options_t {}
+    ,   [[maybe_unused]] 
+      info_t <InfoTag> info = info::none
 ){
         constexpr static auto
     need_info_iterations = InfoTag == info::tag::iterations;
@@ -244,12 +205,12 @@ newton (
 
         [[maybe_unused]]
         auto
-    info_data = info::data::select_newton_t <
-          InfoTag
+    info_data = info::data::select_t <
+          NewtonTag
+        , InfoTag
         , Function
         , Derivative
         , Value
-        , Predicate
     > {};
 
         Value
@@ -319,7 +280,7 @@ newton (
             }
             else
             {
-                throw zero_derivative_e {};
+                throw newton_zero_derivative_e {};
             }
         }
         current -= f / df;
@@ -335,14 +296,76 @@ newton (
     }
     else
     {
-        throw no_convergence_e {};
+        throw newton_no_convergence_e {};
     }
 }
 
+// Zhang method (i.e. better Brent).
+    struct
+ZhangTag
+{};
+
+    using
+zhang_options_t = defaults::options_t;
+
+    using
+zhang_no_convergence_e = defaults::no_convergence_e;
 
     struct
-no_single_root_between_brackets_e
+zhang_no_single_root_between_brackets_e
 {};
+
+    namespace
+info::data
+{
+        struct
+    iterations_zhang_t
+        : iterations_base_t
+    {
+            bool
+        no_single_root_between_bracket = false;
+    };
+
+        template <
+              class Value
+            , class FunctionResult
+        >
+        struct
+    convergence_zhang_t
+        : base_t
+    {
+            bool
+        no_single_root_between_bracket = false;
+            std::vector <std::tuple <
+                  Value
+                , Value
+                , FunctionResult
+                , FunctionResult
+            >>
+        convergence;
+    };
+        template <class... Ts>
+        struct
+    select <ZhangTag, tag::iterations, Ts...>
+    {
+            using
+        type = iterations_zhang_t;
+    };
+
+        template <
+              class Function
+            , class Value
+        >
+        struct
+    select <ZhangTag, tag::convergence, Function, Value>
+    {
+            using
+        type = convergence_zhang_t <
+              Value
+            , std::invoke_result_t <Function, Value>
+        >;
+    };
+} // namespace info::data
 
     template <
           class Function
@@ -353,12 +376,13 @@ no_single_root_between_brackets_e
     >
     auto
 zhang (
-      Function&&       function
-    , Value            a // bracket 1
-    , Value            b // bracket 2
-    , Predicate&&      converged
-    , options_t const& options = options_t {}
-    , [[ maybe_unused ]] info_t <InfoTag> info = info::none
+      Function&&  function
+    , Value       a // bracket 1
+    , Value       b // bracket 2
+    , Predicate&& converged
+    , zhang_options_t const& options = zhang_options_t {}
+    ,   [[maybe_unused]] 
+      info_t <InfoTag> info = info::none
 ){
         constexpr static auto
     need_info_iterations = InfoTag == info::tag::iterations;
@@ -369,11 +393,11 @@ zhang (
 
         [[maybe_unused]]
         auto
-    info_data = info::data::select_zhang_t <
-          InfoTag
+    info_data = info::data::select_t <
+          ZhangTag
+        , InfoTag
         , Function
         , Value
-        , Predicate
     > {};
 
         using std::swap;
@@ -414,7 +438,7 @@ zhang (
         }
         else
         {
-            throw no_single_root_between_brackets_e {};
+            throw zhang_no_single_root_between_brackets_e {};
         }
     }
     for (int i = 0; i < options.max_iter; ++i)
@@ -519,9 +543,8 @@ zhang (
     }
     else
     {
-        throw no_convergence_e {};
+        throw zhang_no_convergence_e {};
     }
 };
 
 } // namespace isto::root_finding
-// vim: foldmethod=marker
