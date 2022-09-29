@@ -3,24 +3,25 @@
 #include <type_traits>
 #include <vector>
 #include <tuple>
+#include <numbers>
 
     namespace 
 isto::root_finding
 {
-        namespace
-    defaults
+    namespace
+defaults
+{
+        struct
+    options_t
     {
-            struct
-        options_t
-        {
-                int
-            max_iter = 100;
-        };
+            int
+        max_iter = 100;
+    };
 
-            struct
-        no_convergence_e
-        {};
-    } // namespace defaults
+        struct
+    no_convergence_e
+    {};
+} // namespace defaults
 
     struct
 info_tag_t
@@ -68,7 +69,7 @@ info
             function_threw = false;
         };
             struct
-        iterations_base_t
+        base_iterations_t
             : base_t
         {
                 int
@@ -118,8 +119,8 @@ newton_zero_derivative_e
 info::data
 {
         struct
-    iterations_newton_t
-        : iterations_base_t
+    newton_iterations_t
+        : base_iterations_t
     {
             bool
         zero_derivative = false;
@@ -153,7 +154,7 @@ info::data
     select <NewtonTag, tag::iterations, Ts...>
     {
             using
-        type = iterations_newton_t;
+        type = newton_iterations_t;
     };
 
         template <
@@ -319,8 +320,8 @@ zhang_no_single_root_between_brackets_e
 info::data
 {
         struct
-    iterations_zhang_t
-        : iterations_base_t
+    zhang_iterations_t
+        : base_iterations_t
     {
             bool
         no_single_root_between_bracket = false;
@@ -349,7 +350,7 @@ info::data
     select <ZhangTag, tag::iterations, Ts...>
     {
             using
-        type = iterations_zhang_t;
+        type = zhang_iterations_t;
     };
 
         template <
@@ -547,4 +548,215 @@ zhang (
     }
 };
 
+// Bracket an extremum
+    struct
+BracketExtremaTag
+{};
+
+    template <class T>
+    struct
+function_evaluation_t
+{
+        T
+    x;
+        T
+    f;
+        friend auto
+    swap (function_evaluation_t <T>& a, function_evaluation_t <T>& b)
+    {
+            using std::swap;
+        swap (a.x, b.x);
+        swap (a.f, b.f);
+    }
+};
+
+    template <class T>
+    using
+bracket_t = std::pair <function_evaluation_t <T>, function_evaluation_t <T>>;
+
+// https://stackoverflow.com/a/58876657/1622545
+    struct
+bracket_extrema_options_t 
+{
+        int
+    max_iter = 100;
+        double
+    gold = std::numbers::phi;
+};
+
+    struct
+bracket_extrema_no_convergence_e 
+{};
+
+    namespace
+info::data
+{
+        struct
+    bracket_extrema_iterations_t
+        : base_iterations_t
+    {};
+
+        template <
+              class Value
+            , class FunctionResult
+        >
+        struct
+    convergence_bracket_extrema_t
+        : base_t
+    {
+            std::vector <std::tuple <
+                  Value
+                , FunctionResult
+            >>
+        convergence;
+    };
+        template <class... Ts>
+        struct
+    select <BracketExtremaTag, tag::iterations, Ts...>
+    {
+            using
+        type = bracket_extrema_iterations_t;
+    };
+
+        template <
+              class Function
+            , class Value
+        >
+        struct
+    select <BracketExtremaTag, tag::convergence, Function, Value>
+    {
+            using
+        type = convergence_bracket_extrema_t <
+              Value
+            , std::invoke_result_t <Function, Value>
+        >;
+    };
+} // namespace info::data
+
+    template <
+          class Function
+        , class Value
+        , info_tag_t InfoTag = info::tag::none
+        , class FunctionReturn = std::invoke_result_t <Function, Value>
+        , class Bracket = bracket_t <Value>
+    >
+    auto
+bracket_minimum (
+      Function&& function
+    , Value      a
+    , Value      b
+    , bracket_extrema_options_t const& options = bracket_extrema_options_t {}
+    ,   [[maybe_unused]] 
+      info_t <InfoTag> info = info::none
+){
+        constexpr static auto
+    need_info_iterations = InfoTag == info::tag::iterations;
+        constexpr static auto
+    need_info_convergence = InfoTag == info::tag::convergence;;
+        constexpr static auto
+    need_info = need_info_iterations || need_info_convergence;
+
+        [[maybe_unused]]
+        auto
+    info_data = info::data::select_t <
+          BracketExtremaTag
+        , InfoTag
+        , Function
+        , Value
+    > {};
+
+        FunctionReturn
+      fa
+    , fb
+    ;
+    try
+    {
+        fa = std::forward <Function> (function) (a);
+        fb = std::forward <Function> (function) (b);
+    }
+    catch (...)
+    {
+        if constexpr (need_info)
+        {
+            info_data.converged = false;
+            info_data.function_threw = true;
+            return std::pair { Bracket {}, info_data };
+        }
+        else
+        {
+            throw;
+        }
+    }
+    if constexpr (need_info_convergence)
+    {
+        info_data.convergence.push_back ({ a, fa });
+        info_data.convergence.push_back ({ b, fb });
+    }
+        auto
+    h = b - a;
+    if (fa < fb)
+    {
+        h = -h;
+            using std::swap;
+        swap (a, b);
+        swap (fa, fb);
+    }
+    for (auto i = 0; i < options.max_iter; ++i)
+    {
+            const auto
+        c = b + h;
+            FunctionReturn
+        fc;
+        try
+        {
+            fc = std::forward <Function> (function) (c);
+        }
+        catch (...)
+        {
+            if constexpr (need_info)
+            {
+                info_data.converged = false;
+                info_data.function_threw = true;
+                return std::pair { Bracket { { b, fb }, { c, fc } }, info_data };
+            }
+            else
+            {
+                throw;
+            }
+        }
+        if constexpr (need_info_convergence)
+        {
+            info_data.convergence.push_back ({ c, fc });
+        }
+        if (fc > fb) 
+        {
+            if constexpr (need_info_iterations)
+            {
+                info_data.iteration_count = i;
+            }
+            if constexpr (need_info)
+            {
+                return std::pair { Bracket { { b, fb }, { c, fc } }, info_data };
+            }
+            else
+            {
+                return Bracket { { b, fb }, { c, fc } };
+            }
+        }
+        a  = b;
+        fa = fb;
+        b  = c;
+        fb = fc;
+        h *= options.gold;
+    }
+    if constexpr (need_info)
+    {
+        info_data.converged = false;
+        return std::pair { Bracket {}, info_data };
+    }
+    else
+    {
+        throw bracket_extrema_no_convergence_e {};
+    }
+}
 } // namespace isto::root_finding

@@ -205,4 +205,71 @@ TEST_CASE("root_finding.hpp")
         CHECK(!info.converged);
         CHECK(info.function_threw);
     }
+
+        auto
+    f5 = [](auto x) { return x * x; };
+        auto
+    f6 = [](auto x) { return x; };
+    SUBCASE("bracket_extrema")
+    {
+            auto
+        r = bracket_minimum (f5, -10., -11.);
+        CHECK(r.first.x < 0.);
+        CHECK(r.second.x > 0.);
+    }
+    SUBCASE("bracket_extrema, throws if no single root between brackets")
+    {
+        CHECK_THROWS_AS(
+              bracket_minimum (f6, 0.0, 0.1);
+            , bracket_extrema_no_convergence_e
+        );
+    }
+    SUBCASE("bracket_extrema, user function throws")
+    {
+        CHECK_THROWS_AS(
+              bracket_minimum (f3, 0.0, 0.1);
+            , int
+        );
+    }
+    SUBCASE("bracket_extrema, with options")
+    {
+        CHECK_THROWS_AS(
+              bracket_minimum (f5, -10., -9., { .max_iter = 1 })
+            , bracket_extrema_no_convergence_e
+        );
+    }
+    SUBCASE("bracket_extrema, with info (iteration count)")
+    {
+            auto const
+        [ result, info ] = bracket_minimum (f5, 10.0, 11.0, { /*default options*/ }, info::iterations);
+        CHECK(info.iteration_count > 1);
+    }
+    SUBCASE("bracket_extrema, with info (convergence)")
+    {
+            auto const
+        [ result, info ] = bracket_minimum (f5, 10.0, 11.0, { /*default options*/ }, info::convergence);
+        CHECK(info.convergence.size () > 1);
+        for (auto&& [ a, fa ]: info.convergence)
+        {
+            MESSAGE (a, ", ", fa);
+        }
+    }
+    SUBCASE("bracket_extrema, with info convergence does not throw no_convergence_e!")
+    {
+            auto const
+        [ result, info ] = bracket_minimum (f5, 20e4, 20e4 + 1e-4, { .max_iter = 2 }, info::convergence);
+        CHECK(info.convergence.size () == 4);
+        CHECK(info.converged == false);
+        for (auto&& [ a, fa ]: info.convergence)
+        {
+            MESSAGE (a, ", ", fa);
+        }
+    }
+    SUBCASE("bracket_extrema, user function throws, with info")
+    {
+            auto const
+        [ result, info ] = bracket_minimum (f3, 0.0, 0.1, {}, info::iterations);
+        CHECK(!info.converged);
+        CHECK(info.function_threw);
+    }
 }
