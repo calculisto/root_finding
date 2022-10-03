@@ -293,6 +293,7 @@ TEST_CASE("root_finding.hpp")
             , int
         );
     }
+    // gss has no max_iter option.
     /*
     SUBCASE("golden_section, with options")
     {
@@ -307,6 +308,7 @@ TEST_CASE("root_finding.hpp")
             auto const
         [ result, info ] = golden_section (f5, 10., 11., 1e-10, { /*default options*/ }, info::iterations);
         CHECK(info.iteration_count > 1);
+        CHECK(info.bracket_minimum_info.iteration_count > 1);
     }
     SUBCASE("golden_section, with info (convergence)")
     {
@@ -316,6 +318,10 @@ TEST_CASE("root_finding.hpp")
         for (auto&& [ a, c, d, b ]: info.convergence)
         {
             MESSAGE (a, ", ", c, ", ", d, ", ", b);
+        }
+        for (auto&& [ a, fa ]: info.bracket_minimum_info.convergence)
+        {
+            MESSAGE (a, ", ", fa);
         }
     }
     /*
@@ -336,7 +342,14 @@ TEST_CASE("root_finding.hpp")
             auto const
         [ result, info ] = golden_section (f3, 0.0, 0.1, 1e-10, {}, info::iterations);
         CHECK(!info.converged);
-        CHECK(info.function_threw);
+        CHECK(info.bracket_minimum_failed);
     }
-
+    SUBCASE("golden_section, passing options to bracket_minimum")
+    {
+            auto const
+        [ result, info ] = golden_section (f5, 10., 11., 1e-10, { .bracket_minimum_options = { .max_iter = 1 } }, info::convergence);
+        CHECK(!info.converged);
+        CHECK(info.bracket_minimum_failed);
+    }
+// -----------------------------------------------------------------------------
 }

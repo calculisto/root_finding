@@ -555,28 +555,6 @@ zhang (
     struct
 BracketExtremaTag
 {};
-/*
-    template <class T>
-    struct
-function_evaluation_t
-{
-        T
-    x;
-        T
-    f;
-        friend auto
-    swap (function_evaluation_t <T>& a, function_evaluation_t <T>& b)
-    {
-            using std::swap;
-        swap (a.x, b.x);
-        swap (a.f, b.f);
-    }
-};
-    template <class T>
-    using
-bracket_t = std::pair <function_evaluation_t <T>, function_evaluation_t <T>>;
-
-*/
 // https://stackoverflow.com/a/58876657/1622545
     struct
 bracket_minimum_options_t 
@@ -790,6 +768,8 @@ info::data
     golden_section_iterations_t
         : base_iterations_t
     {
+            bool
+        bracket_minimum_failed = false;
             bracket_minimum_iterations_t
         bracket_minimum_info;
     };
@@ -802,6 +782,8 @@ info::data
     convergence_golden_section_t
         : base_t
     {
+            bool
+        bracket_minimum_failed = false;
             bracket_minimum_convergence_t <Value, FunctionResult>
         bracket_minimum_info;
             std::vector <std::tuple <
@@ -886,6 +868,12 @@ golden_section (
             std::tie
         (a, b, fa, fb) = std::move (r);
         info_data.bracket_minimum_info = std::move (in);
+        if (!info_data.bracket_minimum_info.converged)
+        {
+            info_data.bracket_minimum_failed = true;
+            info_data.converged = false;
+            return std::pair { 0., info_data};
+        }
     }
     else
     {
@@ -897,7 +885,6 @@ golden_section (
             , options.bracket_minimum_options
         );
     }
-
     if (a > b) 
     {
             using std::swap;
