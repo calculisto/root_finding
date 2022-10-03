@@ -210,41 +210,41 @@ TEST_CASE("root_finding.hpp")
     f5 = [](auto x) { return x * x; };
         auto
     f6 = [](auto x) { return x; };
-    SUBCASE("bracket_extrema")
+    SUBCASE("bracket_minimum")
     {
             auto
-        r = bracket_minimum (f5, -10., -11.);
-        CHECK(r.first.x < 0.);
-        CHECK(r.second.x > 0.);
+        [a, b, fa, fb] = bracket_minimum (f5, -10., -11.);
+        CHECK(a < 0.);
+        CHECK(b > 0.);
     }
-    SUBCASE("bracket_extrema, throws if no single root between brackets")
+    SUBCASE("bracket_minimum, throws if no single root between brackets")
     {
         CHECK_THROWS_AS(
               bracket_minimum (f6, 0.0, 0.1);
-            , bracket_extrema_no_convergence_e
+            , bracket_minimum_no_convergence_e
         );
     }
-    SUBCASE("bracket_extrema, user function throws")
+    SUBCASE("bracket_minimum, user function throws")
     {
         CHECK_THROWS_AS(
               bracket_minimum (f3, 0.0, 0.1);
             , int
         );
     }
-    SUBCASE("bracket_extrema, with options")
+    SUBCASE("bracket_minimum, with options")
     {
         CHECK_THROWS_AS(
               bracket_minimum (f5, -10., -9., { .max_iter = 1 })
-            , bracket_extrema_no_convergence_e
+            , bracket_minimum_no_convergence_e
         );
     }
-    SUBCASE("bracket_extrema, with info (iteration count)")
+    SUBCASE("bracket_minimum, with info (iteration count)")
     {
             auto const
         [ result, info ] = bracket_minimum (f5, 10.0, 11.0, { /*default options*/ }, info::iterations);
         CHECK(info.iteration_count > 1);
     }
-    SUBCASE("bracket_extrema, with info (convergence)")
+    SUBCASE("bracket_minimum, with info (convergence)")
     {
             auto const
         [ result, info ] = bracket_minimum (f5, 10.0, 11.0, { /*default options*/ }, info::convergence);
@@ -254,7 +254,7 @@ TEST_CASE("root_finding.hpp")
             MESSAGE (a, ", ", fa);
         }
     }
-    SUBCASE("bracket_extrema, with info convergence does not throw no_convergence_e!")
+    SUBCASE("bracket_minimum, with info convergence does not throw no_convergence_e!")
     {
             auto const
         [ result, info ] = bracket_minimum (f5, 20e4, 20e4 + 1e-4, { .max_iter = 2 }, info::convergence);
@@ -265,11 +265,78 @@ TEST_CASE("root_finding.hpp")
             MESSAGE (a, ", ", fa);
         }
     }
-    SUBCASE("bracket_extrema, user function throws, with info")
+    SUBCASE("bracket_minimum, user function throws, with info")
     {
             auto const
         [ result, info ] = bracket_minimum (f3, 0.0, 0.1, {}, info::iterations);
         CHECK(!info.converged);
         CHECK(info.function_threw);
     }
+// -----------------------------------------------------------------------------
+    SUBCASE("golden_section")
+    {
+            auto
+        r = golden_section (f5, -10., -11., 1e-10);
+        CHECK(r == doctest::Approx { 0. });
+    }
+    SUBCASE("golden_section, throws if no single root between brackets")
+    {
+        CHECK_THROWS_AS(
+              golden_section (f6, 0.0, 0.1, 1e-10);
+            , bracket_minimum_no_convergence_e
+        );
+    }
+    SUBCASE("golden_section, user function throws")
+    {
+        CHECK_THROWS_AS(
+              golden_section (f3, 0.0, 0.1, 1e-10);
+            , int
+        );
+    }
+    /*
+    SUBCASE("golden_section, with options")
+    {
+        CHECK_THROWS_AS(
+              golden_section (f5, -10., -9., 1e-10, { .max_iter = 1 })
+            , golden_section_no_convergence_e
+        );
+    }
+    */
+    SUBCASE("golden_section, with info (iteration count)")
+    {
+            auto const
+        [ result, info ] = golden_section (f5, 10., 11., 1e-10, { /*default options*/ }, info::iterations);
+        CHECK(info.iteration_count > 1);
+    }
+    SUBCASE("golden_section, with info (convergence)")
+    {
+            auto const
+        [ result, info ] = golden_section (f5, 10., 11., 1e-10, { /*default options*/ }, info::convergence);
+        CHECK(info.convergence.size () > 1);
+        for (auto&& [ a, c, d, b ]: info.convergence)
+        {
+            MESSAGE (a, ", ", c, ", ", d, ", ", b);
+        }
+    }
+    /*
+    SUBCASE("golden_section, with info convergence does not throw no_convergence_e!")
+    {
+            auto const
+        [ result, info ] = golden_section (f5, 20e4, 20e4 + 1e-4, 1e-10, { .max_iter = 2 }, info::convergence);
+        CHECK(info.convergence.size () == 4);
+        CHECK(info.converged == false);
+        for (auto&& [ a, fa ]: info.convergence)
+        {
+            MESSAGE (a, ", ", fa);
+        }
+    }
+    */
+    SUBCASE("golden_section, user function throws, with info")
+    {
+            auto const
+        [ result, info ] = golden_section (f3, 0.0, 0.1, 1e-10, {}, info::iterations);
+        CHECK(!info.converged);
+        CHECK(info.function_threw);
+    }
+
 }
