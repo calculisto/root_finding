@@ -7,6 +7,8 @@
 #include <numbers>
 #include <numbers>
 #include <array>
+#include <ranges>
+#include <valarray>
 
     namespace 
 isto::root_finding
@@ -99,7 +101,7 @@ info
     } // namespace data
 
 } // namespace info
-
+//------------------------------------------------------------------------------
 // Newton method
     struct
 NewtonTag
@@ -184,7 +186,7 @@ info::data
         , class Value
         , class Predicate
         , info_tag_t InfoTag = info::tag::none
-        , class FunctionReturn = std::invoke_result_t <Function, Value>
+        , class FunctionResult = std::invoke_result_t <Function, Value>
         , class DerivativeReturn = std::invoke_result_t <Derivative, Value>
     >
     requires 
@@ -196,7 +198,7 @@ newton (
     , Derivative&&     derivative
     , Value const&     initial_guess
     , Predicate&&      converged
-    , newton_options_t const& options = newton_options_t {}
+    , newton_options_t const& options = {}
     ,   [[maybe_unused]] 
       info_t <InfoTag> info = info::none
 ){
@@ -222,7 +224,7 @@ newton (
     for (int i = 0; i < options.max_iter; ++i)
     {
             auto
-        f = FunctionReturn {};
+        f = FunctionResult {};
         try 
         {
             f = std::forward <Function> (function) (current);
@@ -304,6 +306,7 @@ newton (
     }
 }
 
+//------------------------------------------------------------------------------
 // Zhang method (i.e. better Brent).
     struct
 ZhangTag
@@ -376,7 +379,7 @@ info::data
         , class Value
         , class Predicate
         , info_tag_t InfoTag = info::tag::none
-        , class FunctionReturn = std::invoke_result_t <Function, Value>
+        , class FunctionResult = std::invoke_result_t <Function, Value>
     >
     auto
 zhang (
@@ -384,7 +387,7 @@ zhang (
     , Value       a // bracket 1
     , Value       b // bracket 2
     , Predicate&& converged
-    , zhang_options_t const& options = zhang_options_t {}
+    , zhang_options_t const& options = {}
     ,   [[maybe_unused]] 
       info_t <InfoTag> info = info::none
 ){
@@ -410,7 +413,7 @@ zhang (
             using std::swap;
         swap (a, b);
     }
-        FunctionReturn
+        FunctionResult
       fa
     , fb
     ;
@@ -450,7 +453,7 @@ zhang (
             auto
         c = (a + b) / 2;
             auto
-        fc = FunctionReturn {};
+        fc = FunctionResult {};
         try
         {
             fc = std::forward <Function> (function) (c);
@@ -477,7 +480,7 @@ zhang (
             + c * fa * fb / ((fc - fa) * (fc - fb))
         ;
             auto
-        fs = FunctionReturn {};
+        fs = FunctionResult {};
         try
         {
             fs = std::forward <Function> (function) (s);
@@ -585,10 +588,10 @@ info::data
     bracket_minimum_convergence_t
         : base_t
     {
-            std::vector <std::tuple <
+            std::vector <std::array <std::pair <
                   Value
                 , FunctionResult
-            >>
+            >, 3>>
         convergence;
     };
         template <class... Ts>
@@ -618,8 +621,8 @@ info::data
           class Function
         , class Value
         , info_tag_t InfoTag = info::tag::none
-        , class FunctionReturn = std::invoke_result_t <Function, Value>
-        , class Return = std::tuple <Value, Value, FunctionReturn, FunctionReturn>
+        , class FunctionResult = std::invoke_result_t <Function, Value>
+        , class Return = std::tuple <Value, Value, FunctionResult, FunctionResult>
     >
     requires std::invocable <Function, Value> 
     auto
@@ -627,7 +630,7 @@ bracket_minimum (
       Function&& function
     , Value      a
     , Value      b
-    , bracket_minimum_options_t const& options = bracket_minimum_options_t {}
+    , bracket_minimum_options_t const& options = {}
     ,   [[maybe_unused]] 
       info_t <InfoTag> info = info::none
 ){
@@ -647,7 +650,7 @@ bracket_minimum (
         , Value
     > {};
 
-        FunctionReturn
+        FunctionResult
       fa
     , fb
     ;
@@ -669,11 +672,6 @@ bracket_minimum (
             throw;
         }
     }
-    if constexpr (need_info_convergence)
-    {
-        info_data.convergence.push_back ({ a, fa });
-        info_data.convergence.push_back ({ b, fb });
-    }
         auto
     h = b - a;
     if (fa < fb)
@@ -687,7 +685,7 @@ bracket_minimum (
     {
             const auto
         c = b + h;
-            FunctionReturn
+            FunctionResult
         fc;
         try
         {
@@ -699,7 +697,7 @@ bracket_minimum (
             {
                 info_data.converged = false;
                 info_data.function_threw = true;
-                return std::pair { Return { b, c, fb, fc }, info_data };
+                return std::pair { Return { a, c, fa, fc }, info_data };
             }
             else
             {
@@ -708,7 +706,7 @@ bracket_minimum (
         }
         if constexpr (need_info_convergence)
         {
-            info_data.convergence.push_back ({ c, fc });
+            info_data.convergence.push_back ({{{ a, fa }, { b, fb }, { c, fc }}});
         }
         if (fc > fb) 
         {
@@ -718,11 +716,11 @@ bracket_minimum (
             }
             if constexpr (need_info)
             {
-                return std::pair { Return { b, c, fb, fc }, info_data };
+                return std::pair { Return { a, c, fa, fc }, info_data };
             }
             else
             {
-                return Return { b, c, fb, fc };
+                return Return { a, c, fa, fc };
             }
         }
         a  = b;
@@ -747,13 +745,12 @@ bracket_minimum (
 GoldenSectionTag
 {};
 
+    template <class Value>
     struct
 golden_section_options_t
 {
-    /*
-        int
-    max_iter = 100;
-    */
+        Value
+    tolerance = std::numeric_limits <Value>::epsilon ();
         bracket_minimum_options_t
     bracket_minimum_options = bracket_minimum_options_t {};
 };
@@ -768,8 +765,6 @@ info::data
     golden_section_iterations_t
         : base_iterations_t
     {
-            bool
-        bracket_minimum_failed = false;
             bracket_minimum_iterations_t
         bracket_minimum_info;
     };
@@ -779,18 +774,16 @@ info::data
             , class FunctionResult
         >
         struct
-    convergence_golden_section_t
+    golden_section_convergence_t
         : base_t
     {
-            bool
-        bracket_minimum_failed = false;
             bracket_minimum_convergence_t <Value, FunctionResult>
         bracket_minimum_info;
             std::vector <std::tuple <
-                  Value
-                , Value
-                , Value
-                , Value
+                  std::pair <Value, FunctionResult>
+                , std::pair <Value, FunctionResult>
+                , std::pair <Value, FunctionResult>
+                , std::pair <Value, FunctionResult>
             >>
         convergence;
     };
@@ -811,7 +804,7 @@ info::data
     select <GoldenSectionTag, tag::convergence, Function, Value>
     {
             using
-        type = convergence_golden_section_t <
+        type = golden_section_convergence_t <
               Value
             , std::invoke_result_t <Function, Value>
         >;
@@ -822,7 +815,7 @@ info::data
           class Function
         , class Value
         , info_tag_t InfoTag = info::tag::none
-        , class FunctionReturn = std::invoke_result_t <Function, Value>
+        , class FunctionResult = std::invoke_result_t <Function, Value>
     >
     requires std::invocable <Function, Value> 
     auto
@@ -830,8 +823,7 @@ golden_section (
       Function&&        function
     , Value             a
     , Value             b
-    , Value             tolerance
-    , golden_section_options_t const& options = golden_section_options_t {}
+    , golden_section_options_t <Value> const& options = {}
     ,   [[maybe_unused]] 
       info_t <InfoTag> info = info::none
 ){
@@ -851,7 +843,7 @@ golden_section (
         , Value
     > {};
 
-        FunctionReturn
+        FunctionResult
       fa
     , fb
     ;
@@ -870,7 +862,6 @@ golden_section (
         info_data.bracket_minimum_info = std::move (in);
         if (!info_data.bracket_minimum_info.converged)
         {
-            info_data.bracket_minimum_failed = true;
             info_data.converged = false;
             return std::pair { 0., info_data};
         }
@@ -897,7 +888,7 @@ golden_section (
     c = a + h / phi / phi;
         auto
     d = a + h / phi;
-        FunctionReturn
+        FunctionResult
       fc
     , fd
     ;
@@ -921,10 +912,10 @@ golden_section (
     }
         using std::ceil;
         const int
-    n = std::round (ceil (log (tolerance / h) / log (1. / phi)));
+    n = std::round (ceil (log (options.tolerance / h) / log (1. / phi)));
     if constexpr (need_info_convergence)
     {
-        info_data.convergence.push_back ({ a, c, d, b });
+        info_data.convergence.push_back ({ { a, fa }, { c, fc }, { d, fd }, { b, fb } });
     }
     for (auto i = 0; i < n; ++i)
     {
@@ -980,7 +971,7 @@ golden_section (
         }
         if constexpr (need_info_convergence)
         {
-            info_data.convergence.push_back ({ a, c, d, b });
+            info_data.convergence.push_back ({ { a, fa }, { c, fc }, { d, fd }, { b, fb } });
         }
     }
     if constexpr (need_info_iterations)
@@ -1006,5 +997,256 @@ golden_section (
     {
         return (c + b) / 2.;
     }
+}
+
+
+// Powell
+    struct
+PowellTag
+{};
+
+    template <class Value, class FunctionResult>
+    struct
+powell_options_t
+{
+        int
+    max_iter = 100;
+        FunctionResult
+    tolerance = std::numeric_limits <FunctionResult>::epsilon ();
+        golden_section_options_t <Value>
+    golden_section_options = {};
+};
+
+    using
+powell_no_convergence_e = defaults::no_convergence_e;
+
+    namespace
+info::data
+{
+        struct
+    powell_iterations_t
+        : base_iterations_t
+    {
+            golden_section_iterations_t
+        golden_section_info;
+    };
+
+        template <
+              class Function
+            , class Value
+            , class FunctionResult = std::invoke_result_t <Function, std::valarray <Value>>
+        >
+        struct
+    powell_convergence_t
+        : base_t
+    {
+            std::vector <golden_section_convergence_t <Value, FunctionResult>>
+        golden_section_info;
+            std::vector <std::tuple <int, int, FunctionResult, std::valarray <Value>>>
+        convergence;
+    };
+
+        template <class... Ts>
+        struct
+    select <PowellTag, tag::iterations, Ts...>
+    {
+            using
+        type = powell_iterations_t;
+    };
+
+        template <
+              class Function
+            , class Value
+        >
+        struct
+    select <PowellTag, tag::convergence, Function, Value>
+    {
+            using
+        type = powell_convergence_t <
+              Function
+            , Value
+        >;
+    };
+} // namespace info::data
+
+/* Don't know how to properly mix lambda capture and perfect forwarding, so we
+ * copy the functor. See 
+ * https://stackoverflow.com/q/54418941/1622545
+ */
+    template <
+          class Function
+        , class Value
+        , info_tag_t InfoTag = info::tag::none
+        , class FunctionResult = std::invoke_result_t <Function, std::valarray <Value>>
+    >
+    requires std::invocable <Function, std::valarray <Value>>
+    auto
+powell (
+      Function                function
+    , std::valarray <Value>&& init
+    , powell_options_t <Value, FunctionResult> const& options = {}
+    ,   [[maybe_unused]] 
+      info_t <InfoTag> info = info::none
+){
+        constexpr static auto
+    need_info_iterations = InfoTag == info::tag::iterations;
+        constexpr static auto
+    need_info_convergence = InfoTag == info::tag::convergence;;
+        constexpr static auto
+    need_info = need_info_iterations || need_info_convergence;
+
+        [[maybe_unused]]
+        auto
+    info_data = info::data::select_t <
+          PowellTag
+        , InfoTag
+        , Function
+        , Value
+    > {};
+
+        const auto
+    n = init.size ();
+        auto
+    xi = std::valarray (std::valarray (0., n), n);
+    for (auto i = 0u; i < n; ++i)
+    {
+        xi[i][i] = 1.;
+    }
+        auto
+    p = std::valarray (init);
+        FunctionResult
+    f;
+    if constexpr (need_info)
+    {
+        try
+        {
+            f = function (p);
+        }
+        catch (...)
+        {
+            info_data.converged = false;
+            info_data.function_threw = true;
+            return std::pair { p, info_data };
+        }
+    }
+    for (int j = 1; j <= options.max_iter; ++j)
+    {
+            auto 
+        p0 = p;
+            auto
+        f0 = f;
+            auto
+        delta = std::numeric_limits <Value>::min ();
+            auto
+        max_index = 0;
+        for (auto i = 0u; i < n; ++i)
+        {
+                auto
+            f_ = [&](auto lambda){ return function (p + lambda * xi[i]); };
+                Value
+            lambda;
+            if constexpr (need_info)
+            {
+                    auto
+                [ lam, inf ] = golden_section (f_, 0., 0.1, options.golden_section_options, info);
+                info_data.golden_section_info.push_back (std::move (inf));
+                if (!info_data.golden_section_info.back ().converged)
+                {
+                    info_data.converged = false;
+                    return std::pair { p, info_data };
+                }
+                lambda = std::move (lam);
+            }
+            else
+            {
+                lambda = golden_section (f_, 0., 0.1, options.golden_section_options);
+            }
+            p += lambda * xi[i];
+                const auto
+            f_prev = f;
+            if constexpr (need_info)
+            {
+                try
+                {
+                    f = function (p);
+                }
+                catch (...)
+                {
+                    info_data.converged = false;
+                    info_data.function_threw = true;
+                    return std::pair { p, info_data };
+                }
+            }
+            if (f_prev - f > delta)
+            {
+                delta = f_prev - f;
+                max_index = i;
+            }
+            if constexpr (need_info_convergence)
+            {
+                info_data.convergence.push_back ({j, i, f, p});
+            }
+        }
+            const auto
+        f3 = function (2. * p - p0);
+        if (f3 < f0 && (f0 - 2. * f + f3) 
+            * pow (f0 - f - delta, 2.) < 0.5 * pow (f0 - f3, 2.)
+        ){
+                const auto
+            xi_ = p - p0;
+                auto
+            f_ = [&](auto lambda){ return function (p + lambda * xi_); };
+                Value
+            lambda;
+            if constexpr (need_info)
+            {
+                    auto
+                [ lam, inf ] = golden_section (f_, 0., 0.1, options.golden_section_options, info);
+                info_data.golden_section_info.push_back (std::move (inf));
+                if (!info_data.golden_section_info.back ().converged)
+                {
+                    info_data.converged = false;
+                    return std::pair { p, info_data };
+                }
+                lambda = std::move (lam);
+            }
+            else
+            {
+                lambda = golden_section (f_, 0., 0.1, 1e-8, options.golden_section_options);
+            }
+            xi[max_index] = xi_;
+            p += lambda * xi_;
+            if constexpr (need_info)
+            {
+                try
+                {
+                    f = function (p);
+                }
+                catch (...)
+                {
+                    info_data.converged = false;
+                    info_data.function_threw = true;
+                    return std::pair { p, info_data };
+                }
+            }
+            if constexpr (need_info_convergence)
+            {
+                info_data.convergence.push_back ({j, n, f, p});
+            }
+        }
+        if (fabs (f - f0) < options.tolerance)
+        {
+            if constexpr (need_info)
+            {
+                return std::pair { p, info_data };
+            }
+            else
+            {
+                return p;
+            }
+        }
+    }
+    info_data.converged = false;
+    return std::pair { p, info_data };
 }
 } // namespace isto::root_finding

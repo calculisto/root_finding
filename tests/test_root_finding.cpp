@@ -1,38 +1,55 @@
 #include <doctest/doctest.h>
+#include <fmt/ranges.h>
 #include "../include/isto/root_finding/root_finding.hpp"
     using namespace isto::root_finding;
 #include <cmath>
     using std::cos, std::sin, std::pow;
 
-TEST_CASE("root_finding.hpp")
+    namespace 
+doctest
 {
-        auto
-    f1 = [](double x){ return cos (x) - pow (x, 3.0); };
-        auto
-    df1 = [](double x){ return -sin (x) - 3 * pow (x, 2.0); };
-        auto const
-    target1 = 0.8654740331016144466206859011862287477929;
-     
-        auto
-    f2 = [](double x){ return cos (x) - x; };
-        auto
-    df2 = [](double x){ return -sin (x) - 1; };
-        auto const
-    target2 = 0.7390851332151606416553120876738734040134 ;
+    template <std::ranges::range Range>
+    struct 
+StringMaker<Range>
+{
+        static String 
+    convert(Range const& r) 
+    {
+        return fmt::format ("{}", r).c_str ();
+    }
+};
+}
 
-        auto
-    f3 = [](double){ throw int {}; return 1.; };
-        auto
-    df3 = [](double) { return 0; };
+    auto
+f1 = [](double x){ return cos (x) - pow (x, 3.0); };
+    auto
+df1 = [](double x){ return -sin (x) - 3 * pow (x, 2.0); };
+    auto const
+target1 = 0.8654740331016144466206859011862287477929;
+ 
+    auto
+f2 = [](double x){ return cos (x) - x; };
+    auto
+df2 = [](double x){ return -sin (x) - 1; };
+    auto const
+target2 = 0.7390851332151606416553120876738734040134 ;
 
-        auto
-    f4 = [](double){ return 1.; };
-        auto
-    df4 = [](double) { throw int {}; return 1.; };
+    auto
+f3 = [](double){ throw int {}; return 1.; };
+    auto
+df3 = [](double) { return 0; };
 
-        auto
-    cvg1 = [](double x){ return fabs (x) < 1e-12; };
+    auto
+f4 = [](double){ return 1.; };
+    auto
+df4 = [](double) { throw int {}; return 1.; };
 
+    auto
+cvg1 = [](double x){ return fabs (x) < 1e-12; };
+
+// -----------------------------------------------------------------------------
+TEST_CASE("Newton")
+{
     SUBCASE("newton")
     {
             auto
@@ -117,6 +134,10 @@ TEST_CASE("root_finding.hpp")
         CHECK(info.derivative_threw);
     }
 
+}
+// -----------------------------------------------------------------------------
+TEST_CASE("Zhang")
+{
         auto
     cvg2 = [](
           double a
@@ -205,11 +226,14 @@ TEST_CASE("root_finding.hpp")
         CHECK(!info.converged);
         CHECK(info.function_threw);
     }
-
-        auto
-    f5 = [](auto x) { return x * x; };
-        auto
-    f6 = [](auto x) { return x; };
+}
+// -----------------------------------------------------------------------------
+    auto
+f5 = [](auto x) { return x * x; };
+    auto
+f6 = [](auto x) { return x; };
+TEST_CASE("Bracket minimum")
+{
     SUBCASE("bracket_minimum")
     {
             auto
@@ -249,21 +273,29 @@ TEST_CASE("root_finding.hpp")
             auto const
         [ result, info ] = bracket_minimum (f5, 10.0, 11.0, { /*default options*/ }, info::convergence);
         CHECK(info.convergence.size () > 1);
-        for (auto&& [ a, fa ]: info.convergence)
+        for (auto&& [ a, b, c ]: info.convergence)
         {
-            MESSAGE (a, ", ", fa);
+            MESSAGE (fmt::format (
+                  "[{}, {}], [{}, {}], [{}, {}]"
+                , a.first, a.second
+                , b.first, b.second
+                , c.first, c.second
+            ));
         }
+        MESSAGE(fmt::format(
+              "Result: [{}, {}], [{}, {}]"
+            , std::get <0> (result)
+            , std::get <2> (result)
+            , std::get <1> (result)
+            , std::get <3> (result)
+        ));
     }
     SUBCASE("bracket_minimum, with info convergence does not throw no_convergence_e!")
     {
             auto const
         [ result, info ] = bracket_minimum (f5, 20e4, 20e4 + 1e-4, { .max_iter = 2 }, info::convergence);
-        CHECK(info.convergence.size () == 4);
+        CHECK(info.convergence.size () == 2);
         CHECK(info.converged == false);
-        for (auto&& [ a, fa ]: info.convergence)
-        {
-            MESSAGE (a, ", ", fa);
-        }
     }
     SUBCASE("bracket_minimum, user function throws, with info")
     {
@@ -272,84 +304,126 @@ TEST_CASE("root_finding.hpp")
         CHECK(!info.converged);
         CHECK(info.function_threw);
     }
+}
 // -----------------------------------------------------------------------------
+TEST_CASE("Golden section")
+{
     SUBCASE("golden_section")
     {
             auto
-        r = golden_section (f5, -10., -11., 1e-10);
+        r = golden_section (f5, -10., -11.);
         CHECK(r == doctest::Approx { 0. });
     }
     SUBCASE("golden_section, throws if no single root between brackets")
     {
         CHECK_THROWS_AS(
-              golden_section (f6, 0.0, 0.1, 1e-10);
+              golden_section (f6, 0.0, 0.1);
             , bracket_minimum_no_convergence_e
         );
     }
     SUBCASE("golden_section, user function throws")
     {
         CHECK_THROWS_AS(
-              golden_section (f3, 0.0, 0.1, 1e-10);
+              golden_section (f3, 0.0, 0.1);
             , int
         );
     }
-    // gss has no max_iter option.
-    /*
     SUBCASE("golden_section, with options")
     {
-        CHECK_THROWS_AS(
-              golden_section (f5, -10., -9., 1e-10, { .max_iter = 1 })
-            , golden_section_no_convergence_e
-        );
+            auto
+        r = golden_section (f5, -10., -9., { .tolerance = 1e-6 });
+        CHECK(r == doctest::Approx { 0. });
     }
-    */
     SUBCASE("golden_section, with info (iteration count)")
     {
             auto const
-        [ result, info ] = golden_section (f5, 10., 11., 1e-10, { /*default options*/ }, info::iterations);
+        [ result, info ] = golden_section (f5, 10., 11., { /*default options*/ }, info::iterations);
         CHECK(info.iteration_count > 1);
         CHECK(info.bracket_minimum_info.iteration_count > 1);
     }
     SUBCASE("golden_section, with info (convergence)")
     {
             auto const
-        [ result, info ] = golden_section (f5, 10., 11., 1e-10, { /*default options*/ }, info::convergence);
+        [ result, info ] = golden_section (f5, 10., 11., { /*default options*/ }, info::convergence);
         CHECK(info.convergence.size () > 1);
+        MESSAGE("Bracket minimum convergence:");
+        for (auto&& [ a, c, b ]: info.bracket_minimum_info.convergence)
+        {
+            MESSAGE (fmt::format (
+                  "  [{}, {}], [{}, {}], [{}, {}]"
+                , a.first, a.second
+                , c.first, c.second
+                , b.first, b.second
+            ));
+        }
+        MESSAGE("Golden section convergence:");
         for (auto&& [ a, c, d, b ]: info.convergence)
         {
-            MESSAGE (a, ", ", c, ", ", d, ", ", b);
+            MESSAGE (fmt::format (
+                  "  [{}, {}], [{}, {}], [{}, {}], [{}, {}]"
+                  , a.first, a.second
+                  , c.first, c.second
+                  , d.first, d.second
+                  , b.first, b.second
+            ));
         }
-        for (auto&& [ a, fa ]: info.bracket_minimum_info.convergence)
-        {
-            MESSAGE (a, ", ", fa);
-        }
+        MESSAGE("Result: ", result);
     }
-    /*
-    SUBCASE("golden_section, with info convergence does not throw no_convergence_e!")
-    {
-            auto const
-        [ result, info ] = golden_section (f5, 20e4, 20e4 + 1e-4, 1e-10, { .max_iter = 2 }, info::convergence);
-        CHECK(info.convergence.size () == 4);
-        CHECK(info.converged == false);
-        for (auto&& [ a, fa ]: info.convergence)
-        {
-            MESSAGE (a, ", ", fa);
-        }
-    }
-    */
     SUBCASE("golden_section, user function throws, with info")
     {
             auto const
-        [ result, info ] = golden_section (f3, 0.0, 0.1, 1e-10, {}, info::iterations);
+        [ result, info ] = golden_section (f3, 0.0, 0.1, {}, info::iterations);
         CHECK(!info.converged);
-        CHECK(info.bracket_minimum_failed);
+        CHECK(info.bracket_minimum_info.function_threw);
     }
     SUBCASE("golden_section, passing options to bracket_minimum")
     {
             auto const
-        [ result, info ] = golden_section (f5, 10., 11., 1e-10, { .bracket_minimum_options = { .max_iter = 1 } }, info::convergence);
+        [ result, info ] = golden_section (f5, 10., 11., { .bracket_minimum_options = { .max_iter = 1 } }, info::convergence);
         CHECK(!info.converged);
-        CHECK(info.bracket_minimum_failed);
+        CHECK(!info.bracket_minimum_info.converged);
     }
+}
 // -----------------------------------------------------------------------------
+TEST_CASE("Powel")
+{
+        auto
+    rosenbrock = [](std::valarray <double> const& x)
+    {
+            using std::pow;
+        return pow (1. - x[0], 2.) + 100. * pow (x[1] - pow (x[0], 2.), 2.);
+    };
+    SUBCASE("powell")
+    {
+            auto
+        [ r, info ] = powell (rosenbrock, std::valarray { 0.1, 0.1 }, {}, info::convergence);
+        CHECK(r[0] == doctest::Approx { 1. });
+        CHECK(r[1] == doctest::Approx { 1. });
+        for (auto&& [ i, j, f, p ]: info.convergence)
+        {
+            MESSAGE("iter: ", i, ", direction: ", j, ", f= ", f, ", p= ", p);
+            MESSAGE("Bracket minimum convergence:");
+            for (auto&& [a, b, c]: info.golden_section_info.at (i).bracket_minimum_info.convergence)
+            {
+                MESSAGE (fmt::format (
+                      "  [{}, {}], [{}, {}], [{}, {}]"
+                    , a.first, a.second
+                    , b.first, b.second
+                    , c.first, c.second
+                ));
+            }
+            MESSAGE("Golden section search convergence:");
+            for (auto&& [a, b, c, d]: info.golden_section_info.at (i).convergence)
+            {
+                MESSAGE (fmt::format (
+                      "  [{}, {}], [{}, {}], [{}, {}], [{}, {}]"
+                      , a.first, a.second
+                      , c.first, c.second
+                      , d.first, d.second
+                      , b.first, b.second
+                ));
+            }
+        }
+
+    }
 }
