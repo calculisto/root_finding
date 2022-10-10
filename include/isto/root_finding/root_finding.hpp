@@ -1274,7 +1274,7 @@ powell (
             }
             else
             {
-                lambda = golden_section (f_, 0., 0.1, 1e-8, options.golden_section_options);
+                lambda = golden_section (f_, 0., 0.1, options.golden_section_options);
             }
             xi[max_index] = xi_;
             p += lambda * xi_;
