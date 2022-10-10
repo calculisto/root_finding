@@ -44,57 +44,65 @@ f4 = [](double){ return 1.; };
     auto
 df4 = [](double) { throw int {}; return 1.; };
 
-    auto
-cvg1 = [](double x){ return fabs (x) < 1e-12; };
-
+    bool
+cvg1 (double curr, double old, double f)
+{
+    return f == 0 || fabs (curr - old) < 1e-12;
+}
 // -----------------------------------------------------------------------------
 TEST_CASE("Newton")
 {
     SUBCASE("newton")
     {
             auto
-        r = newton (f1, df1, 1.0, cvg1);
+        r = newton (f1, df1, 1.0);
         CHECK(r == doctest::Approx { target1 });
 
             auto
-        s = newton (f2, df2, 1.0, cvg1); 
+        s = newton (f2, df2, 1.0); 
         CHECK(s == doctest::Approx { target2 });
+    }
+    SUBCASE("newton, with custom convergence criterion")
+    {
+            auto
+        r = newton (f1, df1, 1.0, { .converged = cvg1 });
+        CHECK(r == doctest::Approx { target1 });
     }
     SUBCASE("newton, throws if zero derivative")
     {
         CHECK_THROWS_AS(
-              newton (f1, [](auto){ return 0.0; }, 1.0, cvg1)
+              newton (f1, [](auto){ return 0.0; }, 1.0)
             , newton_zero_derivative_e
         );
     }
     SUBCASE("newton, user function throws")
     {
         CHECK_THROWS_AS(
-              newton (f3, df3, 1.0, cvg1)
+              newton (f3, df3, 1.0)
             , int
         );
         CHECK_THROWS_AS(
-              newton (f4, df4, 1.0, cvg1)
+              newton (f4, df4, 1.0)
             , int
         );
     }
     SUBCASE("newton, with options")
     {
         CHECK_THROWS_AS(
-              newton (f1, df1, 1.0, cvg1, { .max_iter = 1 })
+              newton (f1, df1, 1.0, { .max_iter = 1 })
             , newton_no_convergence_e
         );
     }
     SUBCASE("newton, with info (iteration count)")
     {
             auto const
-        [ result, info ] = newton (f1, df1, 1.0, cvg1, { /*default options*/ }, info::iterations);
+        [ result, info ] = newton (f1, df1, 1.0, { /*default options*/ }, info::iterations);
         CHECK(info.iteration_count > 1);
     }
     SUBCASE("newton, with info (convergence)")
     {
             auto const
-        [ result, info ] = newton (f1, df1, 1.0, cvg1, { /*default options*/ }, info::convergence);
+        [ result, info ] = newton (f1, df1, 1.0, { /*default options*/ }, info::convergence);
         CHECK(info.convergence.size () > 1);
         for (auto&& [v, f ,df]: info.convergence)
         {
@@ -104,7 +112,7 @@ TEST_CASE("Newton")
     SUBCASE("newton, with info convergence does not throw no_convergence_e!")
     {
             auto const
-        [ result, info ] = newton (f1, df1, 1.0, cvg1, { .max_iter = 3 }, info::convergence);
+        [ result, info ] = newton (f1, df1, 1.0, { .max_iter = 3 }, info::convergence);
         CHECK(info.convergence.size () == 3);
         CHECK(info.converged == false);
         for (auto&& [v, f ,df]: info.convergence)
@@ -115,21 +123,21 @@ TEST_CASE("Newton")
     SUBCASE("In fact, with any info, never throw")
     {
             auto const
-        [ result, info ] = newton (f1, [](auto){ return 0.0; }, 1.0, cvg1, {}, info::iterations);
+        [ result, info ] = newton (f1, [](auto){ return 0.0; }, 1.0, {}, info::iterations);
         CHECK(!info.converged);
         CHECK(info.zero_derivative);
     }
     SUBCASE("newton, user function throws, with info")
     {
             auto const
-        [ result, info ] = newton (f3, df3, 1.0, cvg1, {}, info::iterations);
+        [ result, info ] = newton (f3, df3, 1.0, {}, info::iterations);
         CHECK(!info.converged);
         CHECK(info.function_threw);
     }
     SUBCASE("newton, user derivative throws, with info")
     {
             auto const
-        [ result, info ] = newton (f4, df4, 1.0, cvg1, {}, info::iterations);
+        [ result, info ] = newton (f4, df4, 1.0, {}, info::iterations);
         CHECK(!info.converged);
         CHECK(info.derivative_threw);
     }
@@ -157,44 +165,54 @@ TEST_CASE("Zhang")
     SUBCASE("zhang")
     {
             auto
-        r = zhang (f1, 0.0, 10.0, cvg2);
+        r = zhang (f1, 0.0, 10.0);
         CHECK(r == doctest::Approx { target1 });
 
             auto
-        s = zhang (f2, 0.0, 10.0, cvg2); 
+        s = zhang (f2, 0.0, 10.0); 
+        CHECK(s == doctest::Approx { target2 });
+    }
+    SUBCASE("zhang, with custom stopping criterion")
+    {
+            auto
+        r = zhang (f1, 0.0, 10.0, { .converged = cvg2 });
+        CHECK(r == doctest::Approx { target1 });
+
+            auto
+        s = zhang (f2, 0.0, 10.0); 
         CHECK(s == doctest::Approx { target2 });
     }
     SUBCASE("zhang, throws if no single root between brackets")
     {
         CHECK_THROWS_AS(
-              zhang (f1, 0.0, 0.1, cvg2);
+              zhang (f1, 0.0, 0.1);
             , zhang_no_single_root_between_brackets_e
         );
     }
     SUBCASE("zhang, user function throws")
     {
         CHECK_THROWS_AS(
-              zhang (f3, 0.0, 0.1, cvg2);
+              zhang (f3, 0.0, 0.1);
             , int
         );
     }
     SUBCASE("zhang, with options")
     {
         CHECK_THROWS_AS(
-              zhang (f1, 0.0, 10.0, cvg2, { .max_iter = 1 })
+              zhang (f1, 0.0, 10.0, { .max_iter = 1 })
             , zhang_no_convergence_e
         );
     }
     SUBCASE("zhang, with info (iteration count)")
     {
             auto const
-        [ result, info ] = zhang (f1, 0.0, 10.0, cvg2, { /*default options*/ }, info::iterations);
+        [ result, info ] = zhang (f1, 0.0, 10.0, { /*default options*/ }, info::iterations);
         CHECK(info.iteration_count > 1);
     }
     SUBCASE("zhang, with info (convergence)")
     {
             auto const
-        [ result, info ] = zhang (f1, 0.0, 10.0, cvg2, { /*default options*/ }, info::convergence);
+        [ result, info ] = zhang (f1, 0.0, 10.0, { /*default options*/ }, info::convergence);
         CHECK(info.convergence.size () > 1);
         for (auto&& [ a, b, fa, fb ]: info.convergence)
         {
@@ -204,7 +222,7 @@ TEST_CASE("Zhang")
     SUBCASE("zhang, with info convergence does not throw no_convergence_e!")
     {
             auto const
-        [ result, info ] = zhang (f1, 0.0, 10.0, cvg2, { .max_iter = 3 }, info::convergence);
+        [ result, info ] = zhang (f1, 0.0, 10.0, { .max_iter = 3 }, info::convergence);
         CHECK(info.convergence.size () == 3);
         CHECK(info.converged == false);
         for (auto&& [ a, b, fa, fb ]: info.convergence)
@@ -215,14 +233,14 @@ TEST_CASE("Zhang")
     SUBCASE("In fact, with any info, never throw")
     {
             auto const
-        [ result, info ] = zhang (f1, 0.0, 0.1, cvg2, {}, info::iterations);
+        [ result, info ] = zhang (f1, 0.0, 0.1, {}, info::iterations);
         CHECK(!info.converged);
         CHECK(info.no_single_root_between_bracket);
     }
     SUBCASE("zhang, user function throws, with info")
     {
             auto const
-        [ result, info ] = zhang (f3, 0.0, 0.1, cvg2, {}, info::iterations);
+        [ result, info ] = zhang (f3, 0.0, 0.1, {}, info::iterations);
         CHECK(!info.converged);
         CHECK(info.function_threw);
     }

@@ -9,6 +9,7 @@
 #include <array>
 #include <ranges>
 #include <valarray>
+#include <functional>
 
     namespace 
 isto::root_finding
@@ -107,9 +108,41 @@ info
 NewtonTag
 {};
 
-// What options it can takes
-    using
-newton_options_t = defaults::options_t;
+// How it stops, by default
+    template <
+          class Value
+        , class FunctionResult
+    >
+    bool
+newton_default_converged (
+      Value            const& current
+    , Value            const& past
+    , FunctionResult   const& result
+){
+        using std::fabs;
+    return fabs ((past - current) / current) < std::numeric_limits <Value>::epsilon () 
+        || result == 0;
+    ;
+}
+
+// What options it can take
+    template <
+          class Value
+        , class FunctionResult
+        , class DerivativeResult
+    >
+    struct
+newton_options_t
+{
+        int
+    max_iter = 100;
+        std::function <bool (
+          Value const&
+        , Value const&
+        , FunctionResult const&
+    )>
+    converged = &newton_default_converged <Value, FunctionResult>;
+};
 
 // What it might throw
     using
@@ -184,10 +217,9 @@ info::data
           class Function
         , class Derivative
         , class Value
-        , class Predicate
         , info_tag_t InfoTag = info::tag::none
         , class FunctionResult = std::invoke_result_t <Function, Value>
-        , class DerivativeReturn = std::invoke_result_t <Derivative, Value>
+        , class DerivativeResult = std::invoke_result_t <Derivative, Value>
     >
     requires 
            std::invocable <Function, Value> 
@@ -197,8 +229,7 @@ newton (
       Function&&       function
     , Derivative&&     derivative
     , Value const&     initial_guess
-    , Predicate&&      converged
-    , newton_options_t const& options = {}
+    , newton_options_t <Value, FunctionResult, DerivativeResult> const& options = {}
     ,   [[maybe_unused]] 
       info_t <InfoTag> info = info::none
 ){
@@ -219,6 +250,8 @@ newton (
         , Value
     > {};
 
+        Value
+    past;
         Value
     current = initial_guess;
     for (int i = 0; i < options.max_iter; ++i)
@@ -242,23 +275,8 @@ newton (
                 throw;
             }
         }
-        if (std::forward <Predicate> (converged) (f))
-        {
-            if constexpr (need_info_iterations)
-            {
-                info_data.iteration_count = i;
-            }
-            if constexpr (need_info)
-            {
-                return std::pair { current, info_data };
-            }
-            else
-            {
-                return current;
-            }
-        }
             auto
-        df = DerivativeReturn {};
+        df = DerivativeResult {};
         try
         {
             df = std::forward <Derivative> (derivative) (current);
@@ -289,10 +307,26 @@ newton (
                 throw newton_zero_derivative_e {};
             }
         }
+        past = current;
         current -= f / df;
         if constexpr (need_info_convergence)
         {
             info_data.convergence.push_back ({current, f, df});
+        }
+        if (options.converged (current, past, f))
+        {
+            if constexpr (need_info_iterations)
+            {
+                info_data.iteration_count = i;
+            }
+            if constexpr (need_info)
+            {
+                return std::pair { current, info_data };
+            }
+            else
+            {
+                return current;
+            }
         }
     }
     if constexpr (need_info)
@@ -312,8 +346,36 @@ newton (
 ZhangTag
 {};
 
-    using
-zhang_options_t = defaults::options_t;
+    template <class Value, class FunctionResult>
+    bool
+zhang_default_converged (
+      Value const& a
+    , Value const& b
+    , FunctionResult const& fa
+    , FunctionResult const& fb
+){
+        using std::fabs;
+    return
+           fa == 0
+        || fb == 0
+        || fabs (b - a) < std::numeric_limits <Value>::epsilon ()
+    ;
+}
+
+    template <class Value, class FunctionResult>
+    struct
+zhang_options_t
+{
+        int
+    max_iter = 100;
+        std::function <bool (
+              Value const&
+            , Value const&
+            , FunctionResult const&
+            , FunctionResult const&
+        )>
+    converged = zhang_default_converged <Value, FunctionResult>;
+};
 
     using
 zhang_no_convergence_e = defaults::no_convergence_e;
@@ -377,7 +439,6 @@ info::data
     template <
           class Function
         , class Value
-        , class Predicate
         , info_tag_t InfoTag = info::tag::none
         , class FunctionResult = std::invoke_result_t <Function, Value>
     >
@@ -386,8 +447,7 @@ zhang (
       Function&&  function
     , Value       a // bracket 1
     , Value       b // bracket 2
-    , Predicate&& converged
-    , zhang_options_t const& options = {}
+    , zhang_options_t<Value, FunctionResult> const& options = {}
     ,   [[maybe_unused]] 
       info_t <InfoTag> info = info::none
 ){
@@ -527,7 +587,7 @@ zhang (
         {
             info_data.convergence.push_back ({ a, b, fa, fb });
         }
-        if (std::forward <Predicate> (converged) (a, b, fa, fb))
+        if (options.converged (a, b, fa, fb))
         {
             if constexpr (need_info_iterations)
             {
@@ -554,6 +614,7 @@ zhang (
     }
 };
 
+//------------------------------------------------------------------------------
 // Bracket an extremum
     struct
 BracketExtremaTag
@@ -740,6 +801,7 @@ bracket_minimum (
     }
 }
 
+//------------------------------------------------------------------------------
 // Golden section search 
     struct
 GoldenSectionTag
@@ -999,7 +1061,7 @@ golden_section (
     }
 }
 
-
+//------------------------------------------------------------------------------
 // Powell
     struct
 PowellTag
