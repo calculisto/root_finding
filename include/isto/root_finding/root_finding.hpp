@@ -125,6 +125,18 @@ newton_default_converged (
     ;
 }
 
+// Build an alternative simple convergence predicate
+    template <class Value>
+    auto
+make_newton_simple_converged (Value const& tolerance)
+{
+    return [=](auto const& current, auto const& past, auto const& result)
+    {
+            using std::fabs;
+        return fabs ((past - current) / current) < tolerance || result == 0;
+    };
+}
+    
 // What options it can take
     template <
           class Value
@@ -360,6 +372,25 @@ zhang_default_converged (
         || fb == 0
         || fabs (b - a) < std::numeric_limits <Value>::epsilon ()
     ;
+}
+
+    template <class Value>
+    auto
+make_zhang_simple_converged (Value const& tolerance)
+{
+    return [=] <class FunctionResult> (
+          Value const& a
+        , Value const& b
+        , FunctionResult const& fa
+        , FunctionResult const& fb
+    ) {
+            using std::fabs;
+    return
+           fa == 0
+        || fb == 0
+        || fabs (b - a) < tolerance
+    ;
+    };
 }
 
     template <class Value, class FunctionResult>

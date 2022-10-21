@@ -141,7 +141,12 @@ TEST_CASE("Newton")
         CHECK(!info.converged);
         CHECK(info.derivative_threw);
     }
-
+    SUBCASE("Use alternative convergence predicate")
+    {
+            auto
+        r = newton (f1, df1, 1.0, { .converged = make_newton_simple_converged (1e-8) });
+        CHECK(r == doctest::Approx { target1 });
+    }
 }
 // -----------------------------------------------------------------------------
 TEST_CASE("Zhang")
@@ -177,10 +182,6 @@ TEST_CASE("Zhang")
             auto
         r = zhang (f1, 0.0, 10.0, { .converged = cvg2 });
         CHECK(r == doctest::Approx { target1 });
-
-            auto
-        s = zhang (f2, 0.0, 10.0); 
-        CHECK(s == doctest::Approx { target2 });
     }
     SUBCASE("zhang, throws if no single root between brackets")
     {
@@ -243,6 +244,12 @@ TEST_CASE("Zhang")
         [ result, info ] = zhang (f3, 0.0, 0.1, {}, info::iterations);
         CHECK(!info.converged);
         CHECK(info.function_threw);
+    }
+    SUBCASE("zhang, with generated stopping criterion")
+    {
+            auto
+        r = zhang (f1, 0.0, 10.0, { .converged = make_zhang_simple_converged (1e-8) });
+        CHECK(r == doctest::Approx { target1 });
     }
 }
 // -----------------------------------------------------------------------------
