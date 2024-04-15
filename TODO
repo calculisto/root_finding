@@ -1,0 +1,6 @@
+ - Check for noexcept user function and act accordingly.
+ - Compile-time vs run-time options.
+ - default convergence predicates.
+ 
+ -> put the convergence predicate inside the options a
+    struct, with a default value.

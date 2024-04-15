@@ -1,7 +1,7 @@
 #include <doctest/doctest.h>
 #include <fmt/ranges.h>
-#include "../include/isto/root_finding/root_finding.hpp"
-    using namespace isto::root_finding;
+#include "../include/calculisto/root_finding/root_finding.hpp"
+    using namespace calculisto::root_finding;
 #include <cmath>
     using std::cos, std::sin, std::pow;
 

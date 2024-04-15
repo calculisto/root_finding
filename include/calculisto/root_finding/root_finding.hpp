@@ -12,7 +12,7 @@
 #include <functional>
 
     namespace 
-isto::root_finding
+calculisto::root_finding
 {
     namespace
 defaults
@@ -1342,4 +1342,4 @@ powell (
     info_data.converged = false;
     return std::pair { p, info_data };
 }
-} // namespace isto::root_finding
+} // namespace calculisto::root_finding
