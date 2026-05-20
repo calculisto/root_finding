@@ -10,6 +10,8 @@
 #include <ranges>
 #include <valarray>
 #include <functional>
+#include <calculisto/auto_diff/dual.hpp>
+    using calculisto::auto_diff::dual_t;
 
     namespace 
 calculisto::root_finding
@@ -120,7 +122,10 @@ newton_default_converged (
     , FunctionResult   const& result
 ){
         using std::fabs;
-    return fabs ((past - current) / current) < std::numeric_limits <Value>::epsilon () 
+    return 
+           fabs ((past - current) / current) 
+           < 
+           std::numeric_limits <Value>::epsilon () 
         || result == 0;
     ;
 }
@@ -345,6 +350,126 @@ newton (
     {
         info_data.converged = false;
         return std::pair { current, info_data };
+    }
+    else
+    {
+        throw newton_no_convergence_e {};
+    }
+}
+
+//------------------------------------------------------------------------------
+// Newton method with automatic differenciation
+    template <
+          class Function
+        , class Value
+        , info_tag_t InfoTag = info::tag::none
+        , class FunctionResult = std::invoke_result_t <Function, Value>
+        , class DerivativeResult = FunctionResult
+        , class Derivative = Function
+    >
+    requires std::invocable <Function, Value> 
+    auto
+newton (
+      Function&&       function
+    , Value const&     initial_guess
+    , newton_options_t <Value, FunctionResult, DerivativeResult> const& options = {}
+    ,   [[maybe_unused]] 
+      info_t <InfoTag> info = info::none
+){
+    static_assert (
+          std::same_as <FunctionResult, Value>
+        , "automatic differentiation requires this"
+    );
+        constexpr static auto
+    need_info_iterations = InfoTag == info::tag::iterations;
+        constexpr static auto
+    need_info_convergence = InfoTag == info::tag::convergence;;
+        constexpr static auto
+    need_info = need_info_iterations || need_info_convergence;
+
+        [[maybe_unused]]
+        auto
+    info_data = info::data::select_t <
+          NewtonTag
+        , InfoTag
+        , Function
+        , Derivative
+        , Value
+    > {};
+
+        using
+    dual_type = dual_t <1, Value>;
+
+        dual_type
+    past { 0, 0 };
+        auto
+    current = dual_type { 0, initial_guess };
+    for (int i = 0; i < options.max_iter; ++i)
+    {
+            auto
+        f_df = dual_t <1, Value> { 0, 0 };
+        try 
+        {
+            f_df = std::forward <Function> (function) (current);
+        }
+        catch (...)
+        {
+            if constexpr (need_info)
+            {
+                info_data.converged = false;
+                info_data.function_threw = true;
+                return std::pair { current.value (), info_data };
+            }
+            else
+            {
+                throw;
+            }
+        }
+            const auto
+        f = f_df.value ();
+            const auto
+        df = f_df.differential (0);
+        if (df == 0.)
+        {
+            if constexpr (need_info)
+            {
+                info_data.converged = false;
+                info_data.zero_derivative = true;
+                return std::pair { current.value (), info_data };
+            }
+            else
+            {
+                throw newton_zero_derivative_e {};
+            }
+        }
+        past = current;
+        current -= f / df;
+        current.differential (0) = 1;
+
+        if constexpr (need_info_convergence)
+        {
+            info_data.convergence.push_back ({current.value (), f, df});
+        }
+        if (options.converged (current.value (), past.value (), f))
+        {
+            if constexpr (need_info_iterations)
+            {
+                info_data.iteration_count = i;
+            }
+            if constexpr (need_info)
+            {
+                return std::pair { current.value (), info_data };
+            }
+            else
+            {
+                return current.value ();
+            }
+        }
+    }
+    if constexpr (need_info)
+    {
+        info_data.converged = false;
+        return std::pair { current.value (), info_data };
     }
     else
     {
@@ -1003,12 +1128,20 @@ golden_section (
             throw;
         }
     }
+    // FIXME: check for overflow
         using std::ceil;
-        const int
-    n = std::round (ceil (log (options.tolerance / h) / log (1. / phi)));
+        const auto
+    n = static_cast <int> (std::round (
+        ceil (log (options.tolerance / h) / log (1. / phi))
+    ));
     if constexpr (need_info_convergence)
     {
-        info_data.convergence.push_back ({ { a, fa }, { c, fc }, { d, fd }, { b, fb } });
+        info_data.convergence.push_back ({ 
+              { a, fa }
+            , { c, fc }
+            , { d, fd }
+            , { b, fb } 
+        });
     }
     for (auto i = 0; i < n; ++i)
     {

@@ -1,4 +1,6 @@
-DEPENDENCIES_HEADERS= \
+DEPENDENCIES_HEADERS=\
+	git_submodules/calculisto/array/include \
+	git_submodules/calculisto/auto_diff/include \
 
 PROJECT=root_finding
 LINK.o=${LINK.cc}

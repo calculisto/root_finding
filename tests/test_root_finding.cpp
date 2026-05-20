@@ -21,26 +21,26 @@ StringMaker<Range>
 }
 
     auto
-f1 = [](double x){ return cos (x) - pow (x, 3.0); };
+f1 = [](auto x){ return cos (x) - pow (x, 3.0); };
     auto
 df1 = [](double x){ return -sin (x) - 3 * pow (x, 2.0); };
     auto const
 target1 = 0.8654740331016144466206859011862287477929;
  
     auto
-f2 = [](double x){ return cos (x) - x; };
+f2 = [](auto x){ return cos (x) - x; };
     auto
 df2 = [](double x){ return -sin (x) - 1; };
     auto const
 target2 = 0.7390851332151606416553120876738734040134 ;
 
     auto
-f3 = [](double){ throw int {}; return 1.; };
+f3 = [](auto x){ throw int {}; return static_cast <decltype (x)> (1); };
     auto
 df3 = [](double) { return 0; };
 
     auto
-f4 = [](double){ return 1.; };
+f4 = [](double x){ return static_cast <decltype (x)> (1); };
     auto
 df4 = [](double) { throw int {}; return 1.; };
 
@@ -145,6 +145,87 @@ TEST_CASE("Newton")
     {
             auto
         r = newton (f1, df1, 1.0, { .converged = make_newton_simple_converged (1e-8) });
+        CHECK(r == doctest::Approx { target1 });
+    }
+}
+// -----------------------------------------------------------------------------
+TEST_CASE("Newton with automatic differenciation")
+{
+    SUBCASE("newton")
+    {
+            auto
+        r = newton (f1, 1.0);
+        CHECK(r == doctest::Approx { target1 });
+
+            auto
+        s = newton (f2, 1.0); 
+        CHECK(s == doctest::Approx { target2 });
+    }
+    SUBCASE("newton, with custom convergence criterion")
+    {
+            auto
+        r = newton (f1, 1.0, { .converged = cvg1 });
+        CHECK(r == doctest::Approx { target1 });
+    }
+    SUBCASE("newton, throws if zero derivative")
+    {
+        CHECK_THROWS_AS(
+              newton (f1, [](auto){ return 0.0; }, 1.0)
+            , newton_zero_derivative_e
+        );
+    }
+    SUBCASE("newton, user function throws")
+    {
+        CHECK_THROWS_AS(
+              newton (f3, 1.0)
+            , int
+        );
+    }
+    SUBCASE("newton, with options")
+    {
+        CHECK_THROWS_AS(
+              newton (f1, 1.0, { .max_iter = 1 })
+            , newton_no_convergence_e
+        );
+    }
+    SUBCASE("newton, with info (iteration count)")
+    {
+            auto const
+        [ result, info ] = newton (f1, 1.0, { /*default options*/ }, info::iterations);
+        CHECK(info.iteration_count > 1);
+    }
+    SUBCASE("newton, with info (convergence)")
+    {
+            auto const
+        [ result, info ] = newton (f1, 1.0, { /*default options*/ }, info::convergence);
+        CHECK(info.convergence.size () > 1);
+        for (auto&& [v, f ,df]: info.convergence)
+        {
+            MESSAGE (v, ", ", f, ", ", df);
+        }
+    }
+    SUBCASE("newton, with info convergence does not throw no_convergence_e!")
+    {
+            auto const
+        [ result, info ] = newton (f1, 1.0, { .max_iter = 3 }, info::convergence);
+        CHECK(info.convergence.size () == 3);
+        CHECK(info.converged == false);
+        for (auto&& [v, f ,df]: info.convergence)
+        {
+            MESSAGE (v, ", ", f, ", ", df);
+        }
+    }
+    SUBCASE("newton, user function throws, with info")
+    {
+            auto const
+        [ result, info ] = newton (f3, 1.0, {}, info::iterations);
+        CHECK(!info.converged);
+        CHECK(info.function_threw);
+    }
+    SUBCASE("Use alternative convergence predicate")
+    {
+            auto
+        r = newton (f1, 1.0, { .converged = make_newton_simple_converged (1e-8) });
         CHECK(r == doctest::Approx { target1 });
     }
 }
