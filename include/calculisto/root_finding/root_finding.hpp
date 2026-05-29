@@ -10,10 +10,13 @@
 #include <ranges>
 #include <valarray>
 #include <functional>
+// For automatic differenciation
 #include <calculisto/auto_diff/dual.hpp>
     using calculisto::auto_diff::dual_t;
+// For multidimensions
+#include <eigen3/Eigen/Dense>
 
-    namespace 
+    namespace
 calculisto::root_finding
 {
     namespace
@@ -104,6 +107,7 @@ info
     } // namespace data
 
 } // namespace info
+
 //------------------------------------------------------------------------------
 // Newton method
     struct
@@ -122,10 +126,10 @@ newton_default_converged (
     , FunctionResult   const& result
 ){
         using std::fabs;
-    return 
-           fabs ((past - current) / current) 
-           < 
-           std::numeric_limits <Value>::epsilon () 
+    return
+           fabs ((past - current) / current)
+           <
+           std::numeric_limits <Value>::epsilon ()
         || result == 0;
     ;
 }
@@ -141,7 +145,7 @@ make_newton_simple_converged (Value const& tolerance)
         return fabs ((past - current) / current) < tolerance || result == 0;
     };
 }
-    
+
 // What options it can take
     template <
           class Value
@@ -213,18 +217,18 @@ info::data
     };
 
         template <
-              class Function
-            , class Derivative
+              class FunctionResult
+            , class DerivativeResult
             , class Value
         >
         struct
-    select <NewtonTag, tag::convergence, Function, Derivative, Value>
+    select <NewtonTag, tag::convergence, FunctionResult, DerivativeResult, Value>
     {
             using
         type = convergence_newton_t <
               Value
-            , std::invoke_result_t <Function, Value>
-            , std::invoke_result_t <Derivative, Value>
+            , FunctionResult
+            , DerivativeResult
         >;
     };
 } // namespace info::data
@@ -238,8 +242,8 @@ info::data
         , class FunctionResult = std::invoke_result_t <Function, Value>
         , class DerivativeResult = std::invoke_result_t <Derivative, Value>
     >
-    requires 
-           std::invocable <Function, Value> 
+    requires
+           std::invocable <Function, Value>
         && std::invocable <Derivative, Value>
     auto
 newton (
@@ -247,7 +251,7 @@ newton (
     , Derivative&&     derivative
     , Value const&     initial_guess
     , newton_options_t <Value, FunctionResult, DerivativeResult> const& options = {}
-    ,   [[maybe_unused]] 
+    ,   [[maybe_unused]]
       info_t <InfoTag> info = info::none
 ){
         constexpr static auto
@@ -262,8 +266,8 @@ newton (
     info_data = info::data::select_t <
           NewtonTag
         , InfoTag
-        , Function
-        , Derivative
+        , FunctionResult
+        , DerivativeResult
         , Value
     > {};
 
@@ -275,7 +279,7 @@ newton (
     {
             auto
         f = FunctionResult {};
-        try 
+        try
         {
             f = std::forward <Function> (function) (current);
         }
@@ -367,13 +371,13 @@ newton (
         , class DerivativeResult = FunctionResult
         , class Derivative = Function
     >
-    requires std::invocable <Function, Value> 
+    requires std::invocable <Function, Value>
     auto
 newton (
       Function&&       function
     , Value const&     initial_guess
     , newton_options_t <Value, FunctionResult, DerivativeResult> const& options = {}
-    ,   [[maybe_unused]] 
+    ,   [[maybe_unused]]
       info_t <InfoTag> info = info::none
 ){
     static_assert (
@@ -392,8 +396,8 @@ newton (
     info_data = info::data::select_t <
           NewtonTag
         , InfoTag
-        , Function
-        , Derivative
+        , FunctionResult
+        , DerivativeResult
         , Value
     > {};
 
@@ -408,7 +412,7 @@ newton (
     {
             auto
         f_df = dual_t <1, Value> { 0, 0 };
-        try 
+        try
         {
             f_df = std::forward <Function> (function) (current);
         }
@@ -444,6 +448,7 @@ newton (
         }
         past = current;
         current -= f / df;
+        // FIXME: needed?
         current.differential (0) = 1;
 
         if constexpr (need_info_convergence)
@@ -604,7 +609,7 @@ zhang (
     , Value       a // bracket 1
     , Value       b // bracket 2
     , zhang_options_t<Value, FunctionResult> const& options = {}
-    ,   [[maybe_unused]] 
+    ,   [[maybe_unused]]
       info_t <InfoTag> info = info::none
 ){
         constexpr static auto
@@ -691,8 +696,8 @@ zhang (
         s = (fa != fc && fb != fc) ?
             b - fb * (b - a) / (fb - fa)
         :
-              a * fb * fc / ((fa - fb) * (fa - fc)) 
-            + b * fa * fc / ((fb - fa) * (fb - fc)) 
+              a * fb * fc / ((fa - fb) * (fa - fc))
+            + b * fa * fc / ((fb - fa) * (fb - fc))
             + c * fa * fb / ((fc - fa) * (fc - fb))
         ;
             auto
@@ -777,7 +782,7 @@ BracketExtremaTag
 {};
 // https://stackoverflow.com/a/58876657/1622545
     struct
-bracket_minimum_options_t 
+bracket_minimum_options_t
 {
         int
     max_iter = 100;
@@ -786,7 +791,7 @@ bracket_minimum_options_t
 };
 
     struct
-bracket_minimum_no_convergence_e 
+bracket_minimum_no_convergence_e
 {};
 
     namespace
@@ -841,14 +846,14 @@ info::data
         , class FunctionResult = std::invoke_result_t <Function, Value>
         , class Return = std::tuple <Value, Value, FunctionResult, FunctionResult>
     >
-    requires std::invocable <Function, Value> 
+    requires std::invocable <Function, Value>
     auto
 bracket_minimum (
       Function&& function
     , Value      a
     , Value      b
     , bracket_minimum_options_t const& options = {}
-    ,   [[maybe_unused]] 
+    ,   [[maybe_unused]]
       info_t <InfoTag> info = info::none
 ){
         constexpr static auto
@@ -925,7 +930,7 @@ bracket_minimum (
         {
             info_data.convergence.push_back ({{{ a, fa }, { b, fb }, { c, fc }}});
         }
-        if (fc > fb) 
+        if (fc > fb)
         {
             if constexpr (need_info_iterations)
             {
@@ -958,7 +963,7 @@ bracket_minimum (
 }
 
 //------------------------------------------------------------------------------
-// Golden section search 
+// Golden section search
     struct
 GoldenSectionTag
 {};
@@ -1035,14 +1040,14 @@ info::data
         , info_tag_t InfoTag = info::tag::none
         , class FunctionResult = std::invoke_result_t <Function, Value>
     >
-    requires std::invocable <Function, Value> 
+    requires std::invocable <Function, Value>
     auto
 golden_section (
       Function&&        function
     , Value             a
     , Value             b
     , golden_section_options_t <Value> const& options = {}
-    ,   [[maybe_unused]] 
+    ,   [[maybe_unused]]
       info_t <InfoTag> info = info::none
 ){
         constexpr static auto
@@ -1094,7 +1099,7 @@ golden_section (
             , options.bracket_minimum_options
         );
     }
-    if (a > b) 
+    if (a > b)
     {
             using std::swap;
         swap (a, b);
@@ -1136,11 +1141,11 @@ golden_section (
     ));
     if constexpr (need_info_convergence)
     {
-        info_data.convergence.push_back ({ 
+        info_data.convergence.push_back ({
               { a, fa }
             , { c, fc }
             , { d, fd }
-            , { b, fb } 
+            , { b, fb }
         });
     }
     for (auto i = 0; i < n; ++i)
@@ -1204,7 +1209,7 @@ golden_section (
     {
         info_data.iteration_count = n;
     }
-    if (fc < fd) 
+    if (fc < fd)
     {
         if constexpr (need_info)
         {
@@ -1296,7 +1301,7 @@ info::data
 } // namespace info::data
 
 /* Don't know how to properly mix lambda capture and perfect forwarding, so we
- * copy the functor. See 
+ * copy the functor. See
  * https://stackoverflow.com/q/54418941/1622545
  */
     template <
@@ -1311,7 +1316,7 @@ powell (
       Function                function
     , std::valarray <Value>&& init
     , powell_options_t <Value, FunctionResult> const& options = {}
-    ,   [[maybe_unused]] 
+    ,   [[maybe_unused]]
       info_t <InfoTag> info = info::none
 ){
         constexpr static auto
@@ -1357,7 +1362,7 @@ powell (
     }
     for (int j = 1; j <= options.max_iter; ++j)
     {
-            auto 
+            auto
         p0 = p;
             auto
         f0 = f;
@@ -1415,7 +1420,7 @@ powell (
         }
             const auto
         f3 = function (2. * p - p0);
-        if (f3 < f0 && (f0 - 2. * f + f3) 
+        if (f3 < f0 && (f0 - 2. * f + f3)
             * pow (f0 - f - delta, 2.) < 0.5 * pow (f0 - f3, 2.)
         ){
                 const auto
@@ -1474,5 +1479,275 @@ powell (
     }
     info_data.converged = false;
     return std::pair { p, info_data };
+}
+
+//------------------------------------------------------------------------------
+// Multidimensional Newton method with automatic differenciation
+    struct
+MultidimensionalNewtonTag
+{};
+
+    namespace
+detail
+{
+    template <class T, class U>
+    struct
+same_container_as;
+
+    template <class T, class U>
+    struct
+same_container_as <std::vector <T>, U>
+{
+        using
+    type = std::vector <U>;
+};
+    template <class T, std::size_t N, class U>
+    struct
+same_container_as <std::array <T, N>, U>
+{
+        using
+    type = std::array <U, N>;
+};
+    template <class T, std::size_t N, class U>
+    struct
+same_container_as <T[N], U>
+{
+        using
+    type = U[N];
+};
+    template <class T, int Rows, int Cols, class U>
+    struct
+same_container_as <Eigen::Matrix <T, Rows, Cols>, U>
+{
+        using
+    type = Eigen::Matrix <U, Rows, Cols>;
+};
+} // namespace detail
+
+    template <class T, class U>
+    using
+same_container_as_t = detail::same_container_as <std::remove_cvref_t <T>, U>::type;
+
+    namespace
+detail::tests
+{
+    static_assert (std::same_as <same_container_as_t <std::vector <double>, int>, std::vector <int>>);
+    static_assert (std::same_as <same_container_as_t <std::array <double, 3>, int>, std::array <int, 3>>);
+    static_assert (std::same_as <same_container_as_t <double[3], int>, int[3]>);
+    static_assert (std::same_as <same_container_as_t <Eigen::Matrix <double, 3, 3>, int>, Eigen::Matrix <int, 3, 3>>);
+} // namespace detail::tests
+
+    namespace
+detail
+{
+        template <
+              std::ranges::random_access_range Range
+            , class DualValue = std::ranges::range_value_t <Range>
+            , class Value = DualValue::value_type
+        >
+        auto
+    values (Range const& x)
+    {
+            auto
+        r = same_container_as_t <Range, Value> {};
+        for (auto const& [index, dual]: std::views::enumerate (x))
+        {
+            r[index] = dual.value ();
+        }
+        return r;
+    }
+} // namespace detail
+
+    namespace
+info::data
+{
+        template <class... Ts>
+        struct
+    select <MultidimensionalNewtonTag, tag::iterations, Ts...>
+    {
+            using
+        type = newton_iterations_t;
+    };
+
+        template <
+              class FunctionResult
+            , class DerivativeResult
+            , class Range
+        >
+        struct
+    select <MultidimensionalNewtonTag, tag::convergence, FunctionResult, DerivativeResult, Range>
+    {
+            using
+        type = convergence_newton_t <
+              Range
+            , FunctionResult
+            , DerivativeResult
+        >;
+    };
+} // namespace info::data
+
+    template <std::size_t Size, class Value>
+    bool
+default_multidimensional_newton_convergence_test (
+      Eigen::Matrix <Value, Size, 1> const& current
+    , Eigen::Matrix <Value, Size, 1> const& past
+    , Eigen::Matrix <Value, Size, 1> const& result
+){
+    return
+            (past - current).norm () / current.norm ()
+            <
+            std::numeric_limits <Value>::epsilon ()
+        || result.squaredNorm () == 0
+    ;
+};
+    template <
+          std::size_t Size
+        , class Range
+        , class FunctionResult
+        , class DerivativeResult
+        , class Value = std::ranges::range_value_t <Range>
+    >
+    struct
+multidimensional_newton_options_t
+{
+        int
+    max_iter = 100;
+        std::function <bool (
+          Range const&
+        , Range const&
+        , FunctionResult const&
+    )>
+    converged = &default_multidimensional_newton_convergence_test <Size, Value>;
+};
+
+    template <
+          std::size_t Size
+        , class Function
+        , std::ranges::random_access_range Range
+        , info_tag_t InfoTag = info::tag::none
+        , class FunctionResult = std::invoke_result_t <Function, Range>
+        , class Value = std::ranges::range_value_t <Range>
+    >
+    requires (
+           std::invocable <Function, Range>
+        && Size < std::numeric_limits <int>::max ()
+    )
+    auto
+newton (
+      Function&& function
+    , Range&&    initial_guess
+    , multidimensional_newton_options_t <Size, Range, FunctionResult, FunctionResult> const& options = {}
+    ,   [[maybe_unused]]
+      info_t <InfoTag> info = info::none
+){
+    if (std::ranges::size (initial_guess) != Size)
+    {
+        // FIXME: throw something
+    }
+
+        constexpr static auto
+    need_info_iterations = InfoTag == info::tag::iterations;
+        constexpr static auto
+    need_info_convergence = InfoTag == info::tag::convergence;;
+        constexpr static auto
+    need_info = need_info_iterations || need_info_convergence;
+
+        [[maybe_unused]]
+        auto
+    info_data = info::data::select_t <
+          MultidimensionalNewtonTag
+        , InfoTag
+        , std::remove_cvref_t <Range>
+        , Eigen::Matrix <Value, Size, Size>
+        , std::remove_cvref_t <Range>
+    > {};
+
+        using
+    dual = dual_t <Size, Value>;
+        using
+    container_of_dual = same_container_as_t <Range, dual>;
+
+        auto
+    past = container_of_dual {};
+        auto
+    current = container_of_dual {};
+
+    for (std::size_t i = 0; i < Size; ++i)
+    {
+        current[i] = dual { i, initial_guess[i] };
+    }
+        auto
+    jacobian = Eigen::Matrix <Value, Size, Size> {};
+        auto
+    b = Eigen::Matrix <Value, Size, 1> {};
+        auto
+    f_df = container_of_dual {};
+    for (int iter = 0; iter < options.max_iter; ++iter)
+    {
+        try
+        {
+            f_df = std::forward <Function> (function) (current);
+        }
+        catch (...)
+        {
+            if constexpr (need_info)
+            {
+                info_data.converged = false;
+                info_data.function_threw = true;
+                return std::pair { detail::values (current), info_data };
+            }
+            else
+            {
+                throw;
+            }
+        }
+        for (std::size_t i = 0; i < Size; ++i)
+        {
+            b[i] = -f_df[i].value ();
+            for (std::size_t j = 0; j < Size; ++j)
+            {
+                jacobian(i, j) = f_df[i].differential (j);
+            }
+        }
+        if constexpr (need_info_convergence)
+        {
+            info_data.convergence.push_back ({ detail::values (current), detail::values (f_df), jacobian});
+        }
+        past = current;
+            const auto
+        delta = jacobian.fullPivLu ().solve(b);
+        for (std::size_t i = 0; i < Size; ++i)
+        {
+            current[i].value () += delta[i];
+        }
+            auto const
+        current_value = detail::values (current);
+            auto const
+        current_f = detail::values (f_df);
+        if (options.converged (current_value, detail::values (past), current_f))
+        {
+            if constexpr (need_info_iterations)
+            {
+                info_data.iteration_count = iter;
+            }
+            if constexpr (need_info)
+            {
+                return std::pair { current_value, info_data };
+            }
+            else
+            {
+                return current_value;
+            }
+        }
+    }
+    if constexpr (need_info)
+    {
+        info_data.converged = false;
+        return std::pair { detail::values (current), info_data };
+    }
+    else
+    {
+        throw newton_no_convergence_e {};
+    }
 }
 } // namespace calculisto::root_finding

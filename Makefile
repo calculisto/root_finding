@@ -1,5 +1,7 @@
 .PHONY: all check clean
 
+CXXFLAGS+=-g
+
 all: check
 
 check:
