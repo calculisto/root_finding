@@ -422,7 +422,7 @@ newton (
             {
                 info_data.converged = false;
                 info_data.function_threw = true;
-                return std::pair { current.value (), info_data };
+                return std::pair { current.value, info_data };
             }
             else
             {
@@ -430,16 +430,16 @@ newton (
             }
         }
             const auto
-        f = f_df.value ();
+        f = f_df.value;
             const auto
-        df = f_df.differential (0);
+        df = f_df.differentials[0];
         if (df == 0.)
         {
             if constexpr (need_info)
             {
                 info_data.converged = false;
                 info_data.zero_derivative = true;
-                return std::pair { current.value (), info_data };
+                return std::pair { current.value, info_data };
             }
             else
             {
@@ -449,13 +449,13 @@ newton (
         past = current;
         current -= f / df;
         // FIXME: needed?
-        current.differential (0) = 1;
+        current.differentials[0] = 1;
 
         if constexpr (need_info_convergence)
         {
-            info_data.convergence.push_back ({current.value (), f, df});
+            info_data.convergence.push_back ({current.value, f, df});
         }
-        if (options.converged (current.value (), past.value (), f))
+        if (options.converged (current.value, past.value, f))
         {
             if constexpr (need_info_iterations)
             {
@@ -463,18 +463,18 @@ newton (
             }
             if constexpr (need_info)
             {
-                return std::pair { current.value (), info_data };
+                return std::pair { current.value, info_data };
             }
             else
             {
-                return current.value ();
+                return current.value;
             }
         }
     }
     if constexpr (need_info)
     {
         info_data.converged = false;
-        return std::pair { current.value (), info_data };
+        return std::pair { current.value, info_data };
     }
     else
     {
@@ -1552,7 +1552,7 @@ detail
         r = same_container_as_t <Range, Value> {};
         for (auto const& [index, dual]: std::views::enumerate (x))
         {
-            r[index] = dual.value ();
+            r[index] = dual.value;
         }
         return r;
     }
@@ -1703,10 +1703,10 @@ newton (
         }
         for (std::size_t i = 0; i < Size; ++i)
         {
-            b[i] = -f_df[i].value ();
+            b[i] = -f_df[i].value;
             for (std::size_t j = 0; j < Size; ++j)
             {
-                jacobian(i, j) = f_df[i].differential (j);
+                jacobian(i, j) = f_df[i].differentials[j];
             }
         }
         if constexpr (need_info_convergence)
@@ -1718,7 +1718,7 @@ newton (
         delta = jacobian.fullPivLu ().solve(b);
         for (std::size_t i = 0; i < Size; ++i)
         {
-            current[i].value () += delta[i];
+            current[i].value += delta[i];
         }
             auto const
         current_value = detail::values (current);
