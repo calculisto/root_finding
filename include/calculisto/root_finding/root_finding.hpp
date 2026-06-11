@@ -404,14 +404,14 @@ newton (
         using
     dual_type = dual_t <1, Value>;
 
-        dual_type
-    past { 0, 0 };
+        auto 
+    past = dual_type {};
         auto
-    current = dual_type { 0, initial_guess };
+    current = dual_type { initial_guess, 0 };
     for (int i = 0; i < options.max_iter; ++i)
     {
             auto
-        f_df = dual_t <1, Value> { 0, 0 };
+        f_df = dual_type {};
         try
         {
             f_df = std::forward <Function> (function) (current);
@@ -1663,9 +1663,9 @@ newton (
     > {};
 
         using
-    dual = dual_t <Size, Value>;
+    dual_type = dual_t <Size, Value>;
         using
-    container_of_dual = same_container_as_t <Range, dual>;
+    container_of_dual = same_container_as_t <Range, dual_type>;
 
         auto
     past = container_of_dual {};
@@ -1674,7 +1674,7 @@ newton (
 
     for (std::size_t i = 0; i < Size; ++i)
     {
-        current[i] = dual { i, initial_guess[i] };
+        current[i] = dual_type { initial_guess[i], i };
     }
         auto
     jacobian = Eigen::Matrix <Value, Size, Size> {};
