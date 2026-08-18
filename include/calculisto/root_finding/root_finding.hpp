@@ -1636,7 +1636,12 @@ multidimensional_newton_options_t
 newton (
       Function&& function
     , Range&&    initial_guess
-    , multidimensional_newton_options_t <Size, Range, FunctionResult, FunctionResult> const& options = {}
+    , multidimensional_newton_options_t <
+          Size
+        , std::remove_cvref_t <Range>
+        , FunctionResult
+        , FunctionResult
+      > const& options = {}
     ,   [[maybe_unused]]
       info_t <InfoTag> info = info::none
 ){

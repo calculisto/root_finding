@@ -581,13 +581,19 @@ TEST_CASE("Multidimensional Newton with automatic differenciation")
         CHECK(s[0] == doctest::Approx { 1 });
         CHECK(s[1] == doctest::Approx { 1 });
     }
-    #if 0
     SUBCASE("newton, with custom convergence criterion")
     {
             auto
         r = newton (f1, 1.0, { .converged = cvg1 });
         CHECK(r == doctest::Approx { target1 });
     }
+    SUBCASE("newton, with info (iteration count)")
+    {
+            auto const
+        [ result, info ] = newton (f1, 1.0, { /*default options*/ }, info::iterations);
+        CHECK(info.iteration_count > 1);
+    }
+    #if 0
     SUBCASE("newton, throws if zero derivative")
     {
         CHECK_THROWS_AS(
