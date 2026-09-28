@@ -1765,7 +1765,6 @@ newton (
         , info_tag_t InfoTag = info::tag::none
         , class FunctionResult = std::invoke_result_t <Function, Range>
         , class JacobianResult = std::invoke_result_t <Jacobian, Range>
-        , class Value = std::ranges::range_value_t <Range>
     >
     requires (
            std::invocable <Function, Range>
