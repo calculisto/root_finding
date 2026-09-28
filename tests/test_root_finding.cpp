@@ -10,7 +10,7 @@ doctest
 {
     template <std::ranges::range Range>
     struct
-StringMaker<Range>
+StringMaker <Range>
 {
         static String
     convert(Range const& r)
@@ -594,6 +594,168 @@ TEST_CASE("Multidimensional Newton with automatic differenciation")
         CHECK(info.iteration_count > 1);
     }
     #if 0
+    SUBCASE("newton, throws if zero derivative")
+    {
+        CHECK_THROWS_AS(
+              newton (f1, [](auto){ return 0.0; }, 1.0)
+            , newton_zero_derivative_e
+        );
+    }
+    SUBCASE("newton, user function throws")
+    {
+        CHECK_THROWS_AS(
+              newton (f3, 1.0)
+            , int
+        );
+    }
+    SUBCASE("newton, with options")
+    {
+        CHECK_THROWS_AS(
+              newton (f1, 1.0, { .max_iter = 1 })
+            , newton_no_convergence_e
+        );
+    }
+    SUBCASE("newton, with info (iteration count)")
+    {
+            auto const
+        [ result, info ] = newton (f1, 1.0, { /*default options*/ }, info::iterations);
+        CHECK(info.iteration_count > 1);
+    }
+    SUBCASE("newton, with info (convergence)")
+    {
+            auto const
+        [ result, info ] = newton (f1, 1.0, { /*default options*/ }, info::convergence);
+        CHECK(info.convergence.size () > 1);
+        for (auto&& [v, f ,df]: info.convergence)
+        {
+            MESSAGE (v, ", ", f, ", ", df);
+        }
+    }
+    SUBCASE("newton, with info convergence does not throw no_convergence_e!")
+    {
+            auto const
+        [ result, info ] = newton (f1, 1.0, { .max_iter = 3 }, info::convergence);
+        CHECK(info.convergence.size () == 3);
+        CHECK(info.converged == false);
+        for (auto&& [v, f ,df]: info.convergence)
+        {
+            MESSAGE (v, ", ", f, ", ", df);
+        }
+    }
+    SUBCASE("newton, user function throws, with info")
+    {
+            auto const
+        [ result, info ] = newton (f3, 1.0, {}, info::iterations);
+        CHECK(!info.converged);
+        CHECK(info.function_threw);
+    }
+    SUBCASE("Use alternative convergence predicate")
+    {
+            auto
+        r = newton (f1, 1.0, { .converged = make_newton_simple_converged (1e-8) });
+        CHECK(r == doctest::Approx { target1 });
+    }
+    #endif
+
+}
+// -----------------------------------------------------------------------------
+TEST_CASE("Multidimensional Newton with jacobian")
+{
+        auto
+    mf1 = [] <class T> (Eigen::Matrix <T, 2, 1> const& x)
+    {
+            auto
+        r = Eigen::Matrix <T, 2, 1> {};
+            const auto&
+        b = x (0);
+            const auto&
+        h = x (1);
+        r (0) = 2 * h + 4 * b + 25 - 2272000 / b / b - 10 * 2272000 / h / b / b;
+        r (1) = 2 * b + 5 - 2272000 / h / h - 10 * 2272000 / h / h / b;
+        return r;
+    };
+        auto
+    mj1 = [] <class T> (Eigen::Matrix <T, 2, 1> const& x)
+    {
+            auto
+        r = Eigen::Matrix <T, 2, 2> {};
+            const auto&
+        b = x (0);
+            const auto&
+        h = x (1);
+        r (0, 0) = 4 + 2 * 2272000 / b / b / b + 20 * 2272000  / (h * h * h * b);
+        r (1, 1) = 2 * 2272000 * (b + 10) / (h * h * h * b);
+        r (0, 1) = 2 + 10 * 2272000 / (h * h * h * b);
+        r (1, 0) = r (0, 1);
+        return r;
+    };
+        auto
+    mf2 = [] <class T> (Eigen::Matrix <T, 2, 1> const& x)
+    {
+            auto
+        r = Eigen::Matrix <T, 2, 1> {};
+            const auto&
+        X = x (0);
+            const auto&
+        Y = x (1);
+            constexpr auto
+        a = 1.;
+            constexpr auto
+        b = 10.;
+        r (0) = a * (1 - X);
+        r (1) = b * (Y - X * X);
+        return r;
+    };
+        auto
+    mj2 = [] <class T> (Eigen::Matrix <T, 2, 1> const& x)
+    {
+            auto
+        r = Eigen::Matrix <T, 2, 2> {};
+            const auto&
+        X = x (0);
+            constexpr auto
+        a = 1.;
+            constexpr auto
+        b = 10.;
+        r (0, 0) = -a;
+        r (1, 1) = b;
+        r (0, 1) = 0;
+        r (1, 0) = -2 * b * X;
+        return r;
+    };
+    SUBCASE("newton")
+    {
+            const auto
+        x0 = Eigen::Vector2d { 100., 100. };
+            auto
+        r = newton <2> (mf1, mj1, x0);
+        CHECK(r[0] == doctest::Approx { 65.67176514794734 });
+        CHECK(r[1] == doctest::Approx { 138.56848974267868 });
+            const auto
+        y0 = Eigen::Vector2d { -10., -5. };
+            auto
+        s = newton <2> (mf2, mj2, y0);
+        CHECK(s[0] == doctest::Approx { 1 });
+        CHECK(s[1] == doctest::Approx { 1 });
+    }
+    #if 0
+    SUBCASE("newton, with info (convergence)")
+    {
+            const auto
+        x0 = Eigen::Vector2d { 100., 100. };
+            auto const
+        [ result, info ] = newton <2> (mf1, mj1, x0, { /*default options*/ }, info::convergence);
+        for (auto const& [x, f, j]: info.convergence)
+        {
+            MESSAGE(x, f);
+        }
+    }
+    SUBCASE("newton, with custom convergence criterion")
+    {
+            auto
+        r = newton (mf1, 1.0, { .converged = cvg1 });
+        CHECK(r == doctest::Approx { target1 });
+    }
     SUBCASE("newton, throws if zero derivative")
     {
         CHECK_THROWS_AS(

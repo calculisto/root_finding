@@ -1482,7 +1482,7 @@ powell (
 }
 
 //------------------------------------------------------------------------------
-// Multidimensional Newton method with automatic differenciation
+// Multidimensional Newton method with automatic differentiation
     struct
 MultidimensionalNewtonTag
 {};
@@ -1749,6 +1749,149 @@ newton (
     {
         info_data.converged = false;
         return std::pair { detail::values (current), info_data };
+    }
+    else
+    {
+        throw newton_no_convergence_e {};
+    }
+}
+//------------------------------------------------------------------------------
+// Multidimensional Newton method with a jacobian
+    template <
+          std::size_t Size
+        , class Function
+        , class Jacobian
+        , std::ranges::random_access_range Range
+        , info_tag_t InfoTag = info::tag::none
+        , class FunctionResult = std::invoke_result_t <Function, Range>
+        , class JacobianResult = std::invoke_result_t <Jacobian, Range>
+        , class Value = std::ranges::range_value_t <Range>
+    >
+    requires (
+           std::invocable <Function, Range>
+        && std::invocable <Jacobian, Range>
+        && Size < std::numeric_limits <int>::max ()
+    )
+    auto
+newton (
+      Function&& function
+    , Jacobian&& jacobian
+    , Range&&    initial_guess
+    , multidimensional_newton_options_t <
+          Size
+        , std::remove_cvref_t <Range>
+        , FunctionResult
+        , FunctionResult
+      > const& options = {}
+    ,   [[maybe_unused]]
+      info_t <InfoTag> info = info::none
+){
+        constexpr static auto
+    need_info_iterations = InfoTag == info::tag::iterations;
+        constexpr static auto
+    need_info_convergence = InfoTag == info::tag::convergence;;
+        constexpr static auto
+    need_info = need_info_iterations || need_info_convergence;
+
+        [[maybe_unused]]
+        auto
+    info_data = info::data::select_t <
+          NewtonTag
+        , InfoTag
+        , FunctionResult
+        , JacobianResult
+        , Range
+    > {};
+
+        using 
+    ActualRange = std::remove_cvref_t <Range>;
+        ActualRange
+    past;
+        ActualRange
+    current = initial_guess;
+    for (int i = 0; i < options.max_iter; ++i)
+    {
+            auto
+        f = FunctionResult {};
+        try
+        {
+            f = std::forward <Function> (function) (current);
+        }
+        catch (...)
+        {
+            if constexpr (need_info)
+            {
+                info_data.converged = false;
+                info_data.function_threw = true;
+                return std::pair { current, info_data };
+            }
+            else
+            {
+                throw;
+            }
+        }
+            auto
+        j = JacobianResult {};
+        try
+        {
+            j = std::forward <Jacobian> (jacobian) (current);
+        }
+        catch (...)
+        {
+            if constexpr (need_info)
+            {
+                info_data.converged = false;
+                info_data.derivative_threw = true;
+                return std::pair { current, info_data };
+            }
+            else
+            {
+                throw;
+            }
+        }
+        /*
+        if (df == 0.)
+        {
+            if constexpr (need_info)
+            {
+                info_data.converged = false;
+                info_data.zero_derivative = true;
+                return std::pair { current, info_data };
+            }
+            else
+            {
+                throw newton_zero_derivative_e {};
+            }
+        }
+        */
+        past = current;
+            const auto
+        delta = j.colPivHouseholderQr().solve(-f);
+        current += delta;
+        if constexpr (need_info_convergence)
+        {
+            info_data.convergence.push_back ({current, f, j});
+        }
+        if (options.converged (current, past, f))
+        {
+            if constexpr (need_info_iterations)
+            {
+                info_data.iteration_count = i;
+            }
+            if constexpr (need_info)
+            {
+                return std::pair { current, info_data };
+            }
+            else
+            {
+                return current;
+            }
+        }
+    }
+    if constexpr (need_info)
+    {
+        info_data.converged = false;
+        return std::pair { current, info_data };
     }
     else
     {
