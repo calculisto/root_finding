@@ -1780,7 +1780,7 @@ newton (
           Size
         , std::remove_cvref_t <Range>
         , FunctionResult
-        , FunctionResult
+        , JacobianResult
       > const& options = {}
     ,   [[maybe_unused]]
       info_t <InfoTag> info = info::none
