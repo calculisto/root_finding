@@ -1604,7 +1604,6 @@ default_multidimensional_newton_convergence_test (
           std::size_t Size
         , class Range
         , class FunctionResult
-        , class DerivativeResult
         , class Value = std::ranges::range_value_t <Range>
     >
     struct
@@ -1639,7 +1638,6 @@ newton (
     , multidimensional_newton_options_t <
           Size
         , std::remove_cvref_t <Range>
-        , FunctionResult
         , FunctionResult
       > const& options = {}
     ,   [[maybe_unused]]
@@ -1765,6 +1763,7 @@ newton (
         , info_tag_t InfoTag = info::tag::none
         , class FunctionResult = std::invoke_result_t <Function, Range>
         , class JacobianResult = std::invoke_result_t <Jacobian, Range>
+        , class Value = std::ranges::range_value_t <Range>
     >
     requires (
            std::invocable <Function, Range>
@@ -1780,7 +1779,6 @@ newton (
           Size
         , std::remove_cvref_t <Range>
         , FunctionResult
-        , JacobianResult
       > const& options = {}
     ,   [[maybe_unused]]
       info_t <InfoTag> info = info::none
@@ -1803,15 +1801,15 @@ newton (
     > {};
 
         using 
-    ActualRange = std::remove_cvref_t <Range>;
-        ActualRange
+    Vector = Eigen::Matrix <Value, Size, 1>;
+        Vector
     past;
-        ActualRange
+        Vector
     current = initial_guess;
     for (int i = 0; i < options.max_iter; ++i)
     {
             auto
-        f = FunctionResult {};
+        f = Vector {};
         try
         {
             f = std::forward <Function> (function) (current);
@@ -1848,21 +1846,6 @@ newton (
                 throw;
             }
         }
-        /*
-        if (df == 0.)
-        {
-            if constexpr (need_info)
-            {
-                info_data.converged = false;
-                info_data.zero_derivative = true;
-                return std::pair { current, info_data };
-            }
-            else
-            {
-                throw newton_zero_derivative_e {};
-            }
-        }
-        */
         past = current;
             const auto
         delta = j.colPivHouseholderQr().solve(-f);

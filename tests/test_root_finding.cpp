@@ -723,10 +723,10 @@ TEST_CASE("Multidimensional Newton with jacobian")
         r (1, 0) = -2 * b * X;
         return r;
     };
+        const auto
+    x0 = Eigen::Vector2d { 100., 100. };
     SUBCASE("newton")
     {
-            const auto
-        x0 = Eigen::Vector2d { 100., 100. };
             auto
         r = newton <2> (mf1, mj1, x0);
         CHECK(r[0] == doctest::Approx { 65.67176514794734 });
@@ -738,11 +738,29 @@ TEST_CASE("Multidimensional Newton with jacobian")
         CHECK(s[0] == doctest::Approx { 1 });
         CHECK(s[1] == doctest::Approx { 1 });
     }
+        auto
+    custom_cvg = [](
+          Eigen::Vector2d const& current
+        , Eigen::Vector2d const& past
+        , Eigen::Vector2d const& result
+    ){
+        return
+                (past - current).norm () / current.norm ()
+                <
+                1e-6
+            || result.squaredNorm () == 0
+        ;
+    };
+    SUBCASE("newton, with custom convergence criterion")
+    {
+            auto
+        r = newton <2> (mf1, mj1, x0, { .converged = custom_cvg });
+        CHECK(r[0] == doctest::Approx { 65.67176514794734 });
+        CHECK(r[1] == doctest::Approx { 138.56848974267868 });
+    }
     #if 0
     SUBCASE("newton, with info (convergence)")
     {
-            const auto
-        x0 = Eigen::Vector2d { 100., 100. };
             auto const
         [ result, info ] = newton <2> (mf1, mj1, x0, { /*default options*/ }, info::convergence);
         for (auto const& [x, f, j]: info.convergence)
@@ -750,11 +768,11 @@ TEST_CASE("Multidimensional Newton with jacobian")
             MESSAGE(x, f);
         }
     }
-    SUBCASE("newton, with custom convergence criterion")
+    SUBCASE("newton, with info (iteration count)")
     {
-            auto
-        r = newton (mf1, 1.0, { .converged = cvg1 });
-        CHECK(r == doctest::Approx { target1 });
+            auto const
+        [ result, info ] = newton (f1, 1.0, { /*default options*/ }, info::iterations);
+        CHECK(info.iteration_count > 1);
     }
     SUBCASE("newton, throws if zero derivative")
     {
